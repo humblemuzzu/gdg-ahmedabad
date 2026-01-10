@@ -49,7 +49,7 @@ function CaseCard({ record, onDelete }: { record: CaseRecord; onDelete: () => vo
   }[record.status] as "success" | "info" | "outline" | "destructive";
 
   return (
-    <Link href={`/history/${record.id}`}>
+    <Link href={`/report/${record.id}`}>
       <Card className="transition-all hover:border-primary/50 hover:shadow-md cursor-pointer">
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-3">

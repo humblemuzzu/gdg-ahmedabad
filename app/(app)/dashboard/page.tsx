@@ -16,7 +16,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useAnalysisContext } from "@/lib/context/analysis-context";
 
 export default function DashboardPage() {
-  const { agents, activities, risks, documents, steps, costs, result, isRunning, isComplete, status, query, debateMessages, typingAgent } = useAnalysisContext();
+  const { agents, activities, risks, documents, steps, costs, result, isRunning, isComplete, status, query, debateMessages, typingAgent, caseId } = useAnalysisContext();
 
   const activeAgentCount = agents.filter((a) => a.status === "working").length;
   const completedAgentCount = agents.filter((a) => a.status === "done").length;
@@ -119,15 +119,44 @@ export default function DashboardPage() {
 
       {/* Final Report - Shows prominently when analysis is complete */}
       {isComplete && result && (
-        <FinalReport 
-          result={result} 
-          isComplete={isComplete} 
-          query={query || undefined}
-          steps={steps}
-          costs={costs}
-          risks={risks}
-          documents={documents}
-        />
+        <div className="space-y-4">
+          {/* View Full Report Button */}
+          {caseId && (
+            <div className="flex items-center justify-between p-4 rounded-xl border-2 border-primary/20 bg-primary/5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                  <svg className="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="font-semibold">Analysis Complete!</p>
+                  <p className="text-sm text-muted-foreground">Your comprehensive report is ready to view</p>
+                </div>
+              </div>
+              <Link
+                href={`/report/${caseId}`}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors"
+              >
+                View Full Report
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
+              </Link>
+            </div>
+          )}
+          
+          <FinalReport 
+            result={result} 
+            isComplete={isComplete} 
+            query={query || undefined}
+            steps={steps}
+            costs={costs}
+            risks={risks}
+            documents={documents}
+            caseId={caseId || undefined}
+          />
+        </div>
       )}
 
       {/* Main Content Grid */}
