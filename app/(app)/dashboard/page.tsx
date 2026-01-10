@@ -51,51 +51,6 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      {/* Hero Section */}
-      <div className="relative overflow-hidden rounded-xl border-2 border-border bg-card p-6 md:p-8">
-        {/* Background decoration */}
-        <div className="absolute inset-0 gradient-mesh opacity-50" />
-
-        <div className="relative flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              {status === "idle" && <Badge variant="outline">Ready</Badge>}
-              {isRunning && <Badge variant="info" className="animate-pulse">Processing</Badge>}
-              {isComplete && <Badge variant="success">Complete</Badge>}
-              {status === "error" && <Badge variant="destructive">Error</Badge>}
-            </div>
-            <h1 className="font-display text-3xl font-bold tracking-tight md:text-4xl lg:text-5xl">
-              Your Process<br />
-              <span className="text-primary">Command Center</span>
-            </h1>
-            <p className="mt-3 max-w-xl text-base text-muted-foreground">
-              Track every step, monitor agent activity, and stay ahead of blockers.
-              Everything you need to cut through red tape.
-            </p>
-          </div>
-
-          {/* Quick stats row - mobile */}
-          <div className="flex items-center gap-4 md:hidden">
-            <div className="text-center">
-              <p className="font-display text-2xl font-bold text-primary">
-                {isRunning ? activeAgentCount : completedAgentCount}
-              </p>
-              <p className="text-xs text-muted-foreground">Agents</p>
-            </div>
-            <div className="h-8 w-px bg-border" />
-            <div className="text-center">
-              <p className="font-display text-2xl font-bold text-destructive">{highRiskCount}</p>
-              <p className="text-xs text-muted-foreground">Risks</p>
-            </div>
-            <div className="h-8 w-px bg-border" />
-            <div className="text-center">
-              <p className="font-display text-2xl font-bold text-success">{documents.length}</p>
-              <p className="text-xs text-muted-foreground">Docs</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Stats Grid - Desktop */}
       <div className="hidden gap-4 md:grid md:grid-cols-4">
         {stats.map((s, i) => (

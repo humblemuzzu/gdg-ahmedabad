@@ -4,9 +4,10 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { ProcessResult, ProcessStep, ProcessCost, ProcessRisk, ProcessDocument, GeneratedDraft, TimelinePlanItem, DependencyGraph, ProcessStepStatus } from "@/types";
+import type { ProcessResult, ProcessStep, ProcessCost, ProcessRisk, ProcessDocument, GeneratedDraft, TimelinePlanItem, DependencyGraph, ProcessStepStatus, VisitPlanData } from "@/types";
 import { ProcessDependencyGraph } from "./ProcessDependencyGraph";
 import { RemindersPanel } from "./RemindersPanel";
+import { VisitPlanTab } from "./VisitPlanTab";
 import { getEstimatedCosts, getRisksWithDefaults, calculateOfficialCost, DEFAULT_RISKS } from "@/lib/constants/defaults";
 
 interface FinalReportProps {
@@ -52,17 +53,6 @@ interface WhatIfScenario {
 interface WhatIfData {
   scenarios?: WhatIfScenario[];
   recommendation?: string;
-}
-
-interface VisitPlanData {
-  visits?: Array<{
-    time?: string;
-    office: string;
-    purpose: string;
-    tips?: string[];
-    documentsNeeded?: string[];
-  }>;
-  optimizationTips?: string[];
 }
 
 type TabId = "overview" | "timeline" | "costs" | "documents" | "risks" | "experts" | "drafts" | "comparison" | "whatif" | "visits" | "dependencies" | "reminders";
@@ -201,11 +191,11 @@ export function FinalReport({
   // Get what-if scenarios
   const whatIfData = result.outputs?.whatIf as WhatIfData | undefined;
   
-  // Get visit plan
+  // Get visit plan - handle both string and object formats
   const visitPlanRaw = result.outputs?.visitPlan;
   const visitPlan: VisitPlanData | undefined = typeof visitPlanRaw === 'string' 
     ? { visits: [{ office: "See details", purpose: visitPlanRaw }] }
-    : visitPlanRaw as VisitPlanData | undefined;
+    : (visitPlanRaw as VisitPlanData | undefined);
 
   // Get dependency graph
   const dependencyGraph: DependencyGraph | undefined = result.dependencyGraph;
@@ -249,7 +239,7 @@ export function FinalReport({
     { id: "drafts", label: "Drafts", icon: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z", count: drafts.length, highlight: drafts.length > 0 },
     { id: "comparison", label: "Compare States", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z", count: stateComparison?.states?.length },
     { id: "whatif", label: "What-If", icon: "M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z", count: whatIfData?.scenarios?.length },
-    { id: "visits", label: "Visit Plan", icon: "M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z M15 11a3 3 0 11-6 0 3 3 0 016 0z", count: visitPlan?.visits?.length },
+    { id: "visits", label: "Visit Plan", icon: "M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z M15 11a3 3 0 11-6 0 3 3 0 016 0z", count: visitPlan?.visitPlan?.reduce((acc, day) => acc + (day.visits?.length || 0), 0) || visitPlan?.visits?.length || visitPlan?.summary?.totalVisitsRequired },
     { id: "dependencies", label: "Dependencies", icon: "M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5", count: dependencyGraph?.nodes?.length },
     { id: "reminders", label: "Reminders", icon: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9", count: reminders.length },
   ];
@@ -1139,96 +1129,7 @@ export function FinalReport({
 
         {/* Visit Plan Tab */}
         {activeTab === "visits" && (
-          <div className="space-y-4">
-            {visitPlan?.visits && visitPlan.visits.length > 0 ? (
-              <>
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="font-semibold text-lg">Optimized Visit Plan</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Your planned office visits in optimal order
-                    </p>
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  {visitPlan.visits.map((visit, idx) => (
-                    <div key={idx} className="flex gap-4">
-                      <div className="flex flex-col items-center">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-primary bg-primary/10 text-primary font-semibold">
-                          {idx + 1}
-                        </div>
-                        {idx < visitPlan.visits!.length - 1 && (
-                          <div className="w-0.5 h-full min-h-[40px] bg-border" />
-                        )}
-                      </div>
-                      <div className="flex-1 pb-4">
-                        <div className="rounded-lg border border-border bg-card p-4">
-                          <div className="flex items-start justify-between gap-2 mb-2">
-                            <div>
-                              <p className="font-medium">{visit.office}</p>
-                              {visit.time && (
-                                <p className="text-sm text-primary">{visit.time}</p>
-                              )}
-                            </div>
-                            <Badge variant="outline">{visit.purpose}</Badge>
-                          </div>
-                          {visit.documentsNeeded && visit.documentsNeeded.length > 0 && (
-                            <div className="mb-2">
-                              <p className="text-xs text-muted-foreground mb-1">Documents to carry:</p>
-                              <div className="flex flex-wrap gap-1">
-                                {visit.documentsNeeded.map((doc, didx) => (
-                                  <Badge key={didx} variant="secondary" className="text-xs">
-                                    {doc}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          {visit.tips && visit.tips.length > 0 && (
-                            <div className="border-t border-border pt-2 mt-2">
-                              <p className="text-xs text-muted-foreground mb-1">Tips:</p>
-                              <ul className="text-sm text-foreground space-y-1">
-                                {visit.tips.map((tip, tidx) => (
-                                  <li key={tidx} className="flex items-start gap-1">
-                                    <span className="text-info">•</span> {tip}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Optimization Tips */}
-                {visitPlan.optimizationTips && visitPlan.optimizationTips.length > 0 && (
-                  <div className="rounded-lg border border-info/30 bg-info/5 p-4">
-                    <p className="text-sm font-semibold text-info mb-2">Time-Saving Tips</p>
-                    <ul className="space-y-2">
-                      {visitPlan.optimizationTips.map((tip, idx) => (
-                        <li key={idx} className="flex items-start gap-2 text-sm text-foreground">
-                          <svg className="h-4 w-4 text-info flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          {tip}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <svg className="h-12 w-12 mx-auto mb-3 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                <p>No visit plan generated</p>
-                <p className="text-xs mt-2">Visit plans help you optimize your government office trips</p>
-              </div>
-            )}
-          </div>
+          <VisitPlanTab visitPlan={visitPlan} />
         )}
 
         {/* Dependencies Tab */}

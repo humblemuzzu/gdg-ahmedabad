@@ -84,6 +84,84 @@ export interface GeneratedDraft {
   body: string;
 }
 
+// ===============================
+// VISIT PLAN TYPES
+// ===============================
+
+export interface VisitTiming {
+  officeOpens?: string;
+  tokenWindow?: string;
+  lunchBreak?: string;
+  recommendation?: string;
+}
+
+export interface VisitLocation {
+  address?: string;
+  landmark?: string;
+  parking?: string;
+  googleMapsUrl?: string;
+}
+
+export interface VisitDocuments {
+  originals?: string[];
+  copies?: string[];
+  photos?: string;
+  forms?: string;
+  fees?: string;
+}
+
+export type VisitPriority = "critical" | "high" | "medium" | "low";
+
+export interface Visit {
+  visitId: string;
+  office: string;
+  purpose: string;
+  priority?: VisitPriority;
+  arrivalTime?: string;
+  expectedDuration?: string;
+  timing?: VisitTiming;
+  location?: VisitLocation;
+  whatToExpect?: string[];
+  documentsToCarry?: VisitDocuments;
+  tips?: string[];
+  possibleOutcomes?: string[];
+  backupPlan?: string;
+  distanceFromPrevious?: string;
+  note?: string;
+}
+
+export interface VisitDay {
+  day: number;
+  date?: string;
+  dayType?: string;
+  theme?: string;
+  visits: Visit[];
+  dayEndGoal?: string;
+  contingencyTime?: string;
+}
+
+export interface VisitPlanSummary {
+  totalVisitsRequired: number;
+  estimatedDays: number;
+  officesInvolved: string[];
+  onlineOnlyItems?: string[];
+  optimizationSavings?: string;
+}
+
+export interface VisitPlanData {
+  summary?: VisitPlanSummary;
+  visitPlan?: VisitDay[];
+  // Fallback for simpler/legacy format
+  visits?: Array<{
+    time?: string;
+    office: string;
+    purpose: string;
+    tips?: string[];
+    documentsNeeded?: string[];
+  }>;
+  optimizationTips?: string[];
+}
+
 export interface ProcessResult {
   query: string;
   intent: IntentResult;
@@ -102,7 +180,7 @@ export interface ProcessResult {
   costs?: CostBreakdown;
   risks?: { riskScore0to10: number; items: RiskItem[]; preventiveMeasures?: string[] };
   outputs?: {
-    visitPlan?: string;
+    visitPlan?: VisitPlanData | string;
     reminders?: string[];
     statusTracking?: string;
     stateComparison?: unknown;
