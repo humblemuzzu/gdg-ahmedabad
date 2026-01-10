@@ -29,7 +29,6 @@ interface RemindersPanelProps {
     eta: string;
     owner: string;
   }>;
-  // Text-only reminders from agent output
   agentReminders?: string[];
 }
 
@@ -42,17 +41,17 @@ const categoryIcons: Record<Reminder["category"], string> = {
   custom: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9",
 };
 
-const priorityColors: Record<Reminder["priority"], string> = {
-  high: "text-destructive border-destructive/30 bg-destructive/10",
-  medium: "text-warning border-warning/30 bg-warning/10",
-  low: "text-muted-foreground border-border bg-muted/30",
+const priorityColors: Record<Reminder["priority"], { bg: string; text: string }> = {
+  high: { bg: "bg-destructive/10", text: "text-destructive" },
+  medium: { bg: "bg-warning/10", text: "text-warning" },
+  low: { bg: "bg-muted/50", text: "text-muted-foreground" },
 };
 
-const statusColors: Record<Reminder["status"], string> = {
-  pending: "bg-info/10 text-info",
-  sent: "bg-warning/10 text-warning",
-  dismissed: "bg-muted text-muted-foreground",
-  completed: "bg-success/10 text-success",
+const statusColors: Record<Reminder["status"], { bg: string; text: string }> = {
+  pending: { bg: "bg-info/10", text: "text-info" },
+  sent: { bg: "bg-warning/10", text: "text-warning" },
+  dismissed: { bg: "bg-muted/50", text: "text-muted-foreground" },
+  completed: { bg: "bg-success/10", text: "text-success" },
 };
 
 export function RemindersPanel({ caseId, steps, agentReminders }: RemindersPanelProps) {
@@ -62,22 +61,18 @@ export function RemindersPanel({ caseId, steps, agentReminders }: RemindersPanel
   const [newReminder, setNewReminder] = useState({
     title: "",
     description: "",
-    dueDate: new Date().toISOString().split("T")[0], // Default to today
+    dueDate: new Date().toISOString().split("T")[0],
     dueTime: "10:00",
     priority: "medium" as Reminder["priority"],
     category: "custom" as Reminder["category"],
   });
 
-  // Load reminders and check notification permission
   useEffect(() => {
     setReminders(getRemindersByCase(caseId));
     setNotificationPermission(getNotificationPermission());
-    
-    // Start background reminder checks
     startReminderChecks();
   }, [caseId]);
 
-  // Auto-generate reminders from timeline if none exist
   const generateFromTimeline = useCallback(() => {
     if (!steps || steps.length === 0) return;
     
@@ -96,13 +91,11 @@ export function RemindersPanel({ caseId, steps, agentReminders }: RemindersPanel
     }
   }, [caseId, steps]);
 
-  // Request notification permission
   const handleRequestPermission = async () => {
     const permission = await requestNotificationPermission();
     setNotificationPermission(permission);
     
     if (permission === "granted") {
-      // Send a test notification
       new Notification("Notifications Enabled!", {
         body: "You'll now receive reminders for your government processes.",
         icon: "/favicon.svg",
@@ -110,7 +103,6 @@ export function RemindersPanel({ caseId, steps, agentReminders }: RemindersPanel
     }
   };
 
-  // Add new reminder
   const handleAddReminder = () => {
     if (!newReminder.title || !newReminder.dueDate) return;
     
@@ -132,48 +124,33 @@ export function RemindersPanel({ caseId, steps, agentReminders }: RemindersPanel
     setNewReminder({
       title: "",
       description: "",
-      dueDate: new Date().toISOString().split("T")[0], // Reset to today
+      dueDate: new Date().toISOString().split("T")[0],
       dueTime: "10:00",
       priority: "medium",
       category: "custom",
     });
   };
 
-  // Quick add reminder
   const handleQuickAdd = (preset: "today" | "tomorrow" | "in_3_days" | "in_week" | "in_month", title: string) => {
     createQuickReminder(caseId, preset, title, `Reminder: ${title}`);
     setReminders(getRemindersByCase(caseId));
   };
 
-  // Mark reminder as completed
   const handleComplete = (id: string) => {
     updateReminder(id, { status: "completed" });
     setReminders(getRemindersByCase(caseId));
   };
 
-  // Dismiss reminder
   const handleDismiss = (id: string) => {
     updateReminder(id, { status: "dismissed" });
     setReminders(getRemindersByCase(caseId));
   };
 
-  // Delete reminder
   const handleDelete = (id: string) => {
     deleteReminder(id);
     setReminders(getRemindersByCase(caseId));
   };
 
-  // Update reminder time
-  const handleUpdateTime = (id: string, newDate: string, newTime: string) => {
-    const [hours, minutes] = newTime.split(":").map(Number);
-    const reminderTime = new Date(newDate);
-    reminderTime.setHours(hours, minutes, 0, 0);
-    
-    updateReminder(id, { reminderTime: reminderTime.toISOString() });
-    setReminders(getRemindersByCase(caseId));
-  };
-
-  // Sort reminders: pending first, then by due date
   const sortedReminders = [...reminders].sort((a, b) => {
     if (a.status === "pending" && b.status !== "pending") return -1;
     if (a.status !== "pending" && b.status === "pending") return 1;
@@ -183,12 +160,12 @@ export function RemindersPanel({ caseId, steps, agentReminders }: RemindersPanel
   const pendingCount = reminders.filter(r => r.status === "pending").length;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-8">
       {/* Header with actions */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-semibold text-lg">Reminders & Follow-ups</h3>
-          <p className="text-sm text-muted-foreground">
+          <h2 className="text-xl font-semibold">Reminders & Follow-ups</h2>
+          <p className="text-sm text-muted-foreground mt-1">
             {pendingCount > 0 ? `${pendingCount} pending reminder${pendingCount > 1 ? "s" : ""}` : "Track your deadlines"}
           </p>
         </div>
@@ -201,7 +178,7 @@ export function RemindersPanel({ caseId, steps, agentReminders }: RemindersPanel
               Auto-Generate
             </Button>
           )}
-          <Button variant="default" size="sm" onClick={() => setShowAddReminder(true)}>
+          <Button size="sm" onClick={() => setShowAddReminder(true)}>
             <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
             </svg>
@@ -212,35 +189,35 @@ export function RemindersPanel({ caseId, steps, agentReminders }: RemindersPanel
 
       {/* Notification Permission Banner */}
       {notificationPermission !== "granted" ? (
-        <div className="rounded-lg border-2 border-warning/30 bg-warning/5 p-4">
+        <div className="bg-warning/5 rounded-2xl p-5 border-l-4 border-warning">
           <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-warning text-warning-foreground">
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-warning/10 text-warning flex-shrink-0">
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                 </svg>
               </div>
               <div>
-                <p className="font-medium">Enable Browser Notifications</p>
+                <p className="font-semibold text-foreground">Enable Browser Notifications</p>
                 <p className="text-sm text-muted-foreground">Get reminded even when you&apos;re not on this page</p>
               </div>
             </div>
             <Button onClick={handleRequestPermission}>
-              Enable Notifications
+              Enable
             </Button>
           </div>
         </div>
       ) : (
-        <div className="rounded-lg border-2 border-success/30 bg-success/5 p-4">
+        <div className="bg-success/5 rounded-2xl p-5 border-l-4 border-success">
           <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-success text-success-foreground">
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-success/10 text-success flex-shrink-0">
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
               </div>
               <div>
-                <p className="font-medium text-success">Notifications Enabled</p>
+                <p className="font-semibold text-success">Notifications Enabled</p>
                 <p className="text-sm text-muted-foreground">You&apos;ll receive browser alerts for your reminders</p>
               </div>
             </div>
@@ -252,7 +229,7 @@ export function RemindersPanel({ caseId, steps, agentReminders }: RemindersPanel
                 alert(result.message);
               }}
             >
-              Test Notification
+              Test
             </Button>
           </div>
         </div>
@@ -260,17 +237,20 @@ export function RemindersPanel({ caseId, steps, agentReminders }: RemindersPanel
 
       {/* Add Reminder Form */}
       {showAddReminder && (
-        <div className="rounded-lg border-2 border-primary/30 bg-primary/5 p-4 space-y-4">
+        <div className="bg-card rounded-2xl p-6 space-y-6">
           <div className="flex items-center justify-between">
-            <h4 className="font-semibold">New Reminder</h4>
-            <button onClick={() => setShowAddReminder(false)} className="text-muted-foreground hover:text-foreground">
+            <h3 className="font-semibold text-lg">New Reminder</h3>
+            <button 
+              onClick={() => setShowAddReminder(false)} 
+              className="p-2 rounded-lg hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+            >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
           
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-5 md:grid-cols-2">
             <div className="space-y-2">
               <label className="text-sm font-medium">Title *</label>
               <input
@@ -278,7 +258,7 @@ export function RemindersPanel({ caseId, steps, agentReminders }: RemindersPanel
                 value={newReminder.title}
                 onChange={e => setNewReminder(prev => ({ ...prev, title: e.target.value }))}
                 placeholder="e.g., Follow up on FSSAI"
-                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm"
+                className="w-full px-4 py-2.5 rounded-xl bg-muted/30 border-0 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
               />
             </div>
             <div className="space-y-2">
@@ -286,7 +266,7 @@ export function RemindersPanel({ caseId, steps, agentReminders }: RemindersPanel
               <select
                 value={newReminder.category}
                 onChange={e => setNewReminder(prev => ({ ...prev, category: e.target.value as Reminder["category"] }))}
-                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm"
+                className="w-full px-4 py-2.5 rounded-xl bg-muted/30 border-0 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
               >
                 <option value="follow_up">Follow-up</option>
                 <option value="deadline">Deadline</option>
@@ -305,11 +285,11 @@ export function RemindersPanel({ caseId, steps, agentReminders }: RemindersPanel
               onChange={e => setNewReminder(prev => ({ ...prev, description: e.target.value }))}
               placeholder="Add any notes or details..."
               rows={2}
-              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm"
+              className="w-full px-4 py-2.5 rounded-xl bg-muted/30 border-0 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all resize-none"
             />
           </div>
           
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-5 md:grid-cols-3">
             <div className="space-y-2">
               <label className="text-sm font-medium">Due Date *</label>
               <input
@@ -317,7 +297,7 @@ export function RemindersPanel({ caseId, steps, agentReminders }: RemindersPanel
                 value={newReminder.dueDate}
                 onChange={e => setNewReminder(prev => ({ ...prev, dueDate: e.target.value }))}
                 min={new Date().toISOString().split("T")[0]}
-                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm"
+                className="w-full px-4 py-2.5 rounded-xl bg-muted/30 border-0 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
               />
             </div>
             <div className="space-y-2">
@@ -326,7 +306,7 @@ export function RemindersPanel({ caseId, steps, agentReminders }: RemindersPanel
                 type="time"
                 value={newReminder.dueTime}
                 onChange={e => setNewReminder(prev => ({ ...prev, dueTime: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm"
+                className="w-full px-4 py-2.5 rounded-xl bg-muted/30 border-0 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
               />
             </div>
             <div className="space-y-2">
@@ -334,7 +314,7 @@ export function RemindersPanel({ caseId, steps, agentReminders }: RemindersPanel
               <select
                 value={newReminder.priority}
                 onChange={e => setNewReminder(prev => ({ ...prev, priority: e.target.value as Reminder["priority"] }))}
-                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm"
+                className="w-full px-4 py-2.5 rounded-xl bg-muted/30 border-0 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
               >
                 <option value="high">High</option>
                 <option value="medium">Medium</option>
@@ -344,41 +324,26 @@ export function RemindersPanel({ caseId, steps, agentReminders }: RemindersPanel
           </div>
           
           {/* Quick Add Buttons */}
-          <div className="flex flex-wrap gap-2 pt-2 border-t border-border">
+          <div className="flex flex-wrap items-center gap-2 pt-4 border-t border-border/50">
             <span className="text-xs text-muted-foreground">Quick add:</span>
-            <button
-              onClick={() => handleQuickAdd("today", newReminder.title || "Follow-up")}
-              className="text-xs px-2 py-1 rounded bg-primary/20 hover:bg-primary/30 text-primary font-medium"
-            >
-              Today
-            </button>
-            <button
-              onClick={() => handleQuickAdd("tomorrow", newReminder.title || "Follow-up")}
-              className="text-xs px-2 py-1 rounded bg-muted hover:bg-muted/80"
-            >
-              Tomorrow
-            </button>
-            <button
-              onClick={() => handleQuickAdd("in_3_days", newReminder.title || "Follow-up")}
-              className="text-xs px-2 py-1 rounded bg-muted hover:bg-muted/80"
-            >
-              In 3 Days
-            </button>
-            <button
-              onClick={() => handleQuickAdd("in_week", newReminder.title || "Follow-up")}
-              className="text-xs px-2 py-1 rounded bg-muted hover:bg-muted/80"
-            >
-              In 1 Week
-            </button>
-            <button
-              onClick={() => handleQuickAdd("in_month", newReminder.title || "Follow-up")}
-              className="text-xs px-2 py-1 rounded bg-muted hover:bg-muted/80"
-            >
-              In 1 Month
-            </button>
+            {[
+              { key: "today", label: "Today" },
+              { key: "tomorrow", label: "Tomorrow" },
+              { key: "in_3_days", label: "3 Days" },
+              { key: "in_week", label: "1 Week" },
+              { key: "in_month", label: "1 Month" },
+            ].map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => handleQuickAdd(key as any, newReminder.title || "Follow-up")}
+                className="text-xs px-3 py-1.5 rounded-lg bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {label}
+              </button>
+            ))}
           </div>
           
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex justify-end gap-3 pt-2">
             <Button variant="outline" onClick={() => setShowAddReminder(false)}>
               Cancel
             </Button>
@@ -391,28 +356,28 @@ export function RemindersPanel({ caseId, steps, agentReminders }: RemindersPanel
 
       {/* Reminders List */}
       {sortedReminders.length > 0 ? (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {sortedReminders.map(reminder => {
             const isOverdue = new Date(reminder.dueDate) < new Date() && reminder.status === "pending";
+            const priority = priorityColors[reminder.priority];
+            const status = statusColors[reminder.status];
             
             return (
               <div
                 key={reminder.id}
-                className={`rounded-lg border-2 p-4 transition-all ${
-                  reminder.status === "completed" ? "opacity-60 border-success/30 bg-success/5" :
-                  reminder.status === "dismissed" ? "opacity-40 border-border bg-muted/30" :
-                  isOverdue ? "border-destructive/50 bg-destructive/5" :
-                  priorityColors[reminder.priority]
+                className={`bg-card rounded-2xl p-5 transition-all ${
+                  reminder.status === "completed" ? "opacity-60" :
+                  reminder.status === "dismissed" ? "opacity-40" :
+                  isOverdue ? "ring-2 ring-destructive/20" : ""
                 }`}
               >
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-4">
                   {/* Icon */}
-                  <div className={`flex h-10 w-10 items-center justify-center rounded-lg flex-shrink-0 ${
-                    reminder.status === "completed" ? "bg-success text-success-foreground" :
-                    reminder.status === "dismissed" ? "bg-muted text-muted-foreground" :
-                    isOverdue ? "bg-destructive text-destructive-foreground" :
-                    reminder.priority === "high" ? "bg-destructive/20 text-destructive" :
-                    "bg-info/20 text-info"
+                  <div className={`flex h-12 w-12 items-center justify-center rounded-xl flex-shrink-0 ${
+                    reminder.status === "completed" ? "bg-success/10 text-success" :
+                    reminder.status === "dismissed" ? "bg-muted/50 text-muted-foreground" :
+                    isOverdue ? "bg-destructive/10 text-destructive" :
+                    priority.bg + " " + priority.text
                   }`}>
                     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d={categoryIcons[reminder.category]} />
@@ -421,64 +386,66 @@ export function RemindersPanel({ caseId, steps, agentReminders }: RemindersPanel
                   
                   {/* Content */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className={`font-medium ${reminder.status === "completed" ? "line-through" : ""}`}>
+                        <p className={`font-medium ${reminder.status === "completed" ? "line-through text-muted-foreground" : "text-foreground"}`}>
                           {reminder.title}
                         </p>
                         {reminder.description && (
-                          <p className="text-sm text-muted-foreground mt-0.5">{reminder.description}</p>
+                          <p className="text-sm text-muted-foreground mt-1">{reminder.description}</p>
                         )}
                       </div>
-                      <Badge className={statusColors[reminder.status]}>
+                      <Badge className={`${status.bg} ${status.text} border-0 capitalize`}>
                         {reminder.status}
                       </Badge>
                     </div>
                     
                     {/* Due Date & Actions */}
-                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/50">
+                    <div className="flex items-center justify-between mt-4 pt-4 border-t border-border/50">
                       <div className="flex items-center gap-4 text-sm">
-                        <div className={`flex items-center gap-1.5 ${isOverdue ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+                        <div className={`flex items-center gap-2 ${isOverdue ? "text-destructive font-medium" : "text-muted-foreground"}`}>
                           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                           </svg>
                           {formatReminderDate(reminder.dueDate)}
                         </div>
-                        <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <div className="flex items-center gap-2 text-muted-foreground">
                           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                           {formatReminderTime(reminder.reminderTime)}
                         </div>
-                        <Badge variant="outline" className="text-xs capitalize">{reminder.category.replace("_", " ")}</Badge>
+                        <Badge className="bg-muted/50 text-muted-foreground border-0 text-xs capitalize">
+                          {reminder.category.replace("_", " ")}
+                        </Badge>
                       </div>
                       
                       {reminder.status === "pending" && (
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => handleComplete(reminder.id)}
-                            className="p-1.5 rounded hover:bg-success/20 text-success transition-colors"
+                            className="p-2 rounded-lg hover:bg-success/10 text-success transition-colors"
                             title="Mark as completed"
                           >
-                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                             </svg>
                           </button>
                           <button
                             onClick={() => handleDismiss(reminder.id)}
-                            className="p-1.5 rounded hover:bg-muted text-muted-foreground transition-colors"
+                            className="p-2 rounded-lg hover:bg-muted/50 text-muted-foreground transition-colors"
                             title="Dismiss"
                           >
-                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
                             </svg>
                           </button>
                           <button
                             onClick={() => handleDelete(reminder.id)}
-                            className="p-1.5 rounded hover:bg-destructive/20 text-destructive transition-colors"
+                            className="p-2 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"
                             title="Delete"
                           >
-                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>
                           </button>
@@ -492,14 +459,14 @@ export function RemindersPanel({ caseId, steps, agentReminders }: RemindersPanel
           })}
         </div>
       ) : (
-        <div className="text-center py-8 text-muted-foreground">
-          <div className="flex h-16 w-16 mx-auto mb-4 items-center justify-center rounded-full bg-muted">
-            <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <div className="text-center py-16 text-muted-foreground">
+          <div className="flex h-20 w-20 mx-auto mb-6 items-center justify-center rounded-full bg-muted/30">
+            <svg className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
             </svg>
           </div>
-          <p className="font-medium mb-1">No Reminders Set</p>
-          <p className="text-sm max-w-xs mx-auto mb-4">
+          <p className="font-semibold text-foreground mb-2">No Reminders Set</p>
+          <p className="text-sm max-w-xs mx-auto mb-6">
             Create reminders to track deadlines and follow-ups for your government process.
           </p>
           {steps && steps.length > 0 && (
@@ -515,19 +482,21 @@ export function RemindersPanel({ caseId, steps, agentReminders }: RemindersPanel
 
       {/* Agent Reminders (text-only from AI) */}
       {agentReminders && agentReminders.length > 0 && (
-        <div className="rounded-lg border border-border bg-muted/30 p-4">
-          <p className="text-sm font-semibold mb-3">AI Suggested Follow-ups</p>
-          <div className="space-y-2">
+        <div className="bg-muted/30 rounded-2xl p-6">
+          <p className="font-semibold mb-4">AI Suggested Follow-ups</p>
+          <div className="space-y-3">
             {agentReminders.map((reminder, idx) => (
-              <div key={idx} className="flex items-start gap-2 text-sm">
-                <span className="text-info">•</span>
-                <span className="text-muted-foreground">{reminder}</span>
+              <div key={idx} className="flex items-start justify-between gap-4 text-sm">
+                <div className="flex items-start gap-2">
+                  <span className="text-info">•</span>
+                  <span className="text-muted-foreground">{reminder}</span>
+                </div>
                 <button
                   onClick={() => {
                     setNewReminder(prev => ({ ...prev, title: reminder.slice(0, 50), description: reminder }));
                     setShowAddReminder(true);
                   }}
-                  className="text-xs text-primary hover:underline ml-auto flex-shrink-0"
+                  className="text-xs text-primary hover:underline flex-shrink-0"
                 >
                   Set Reminder
                 </button>
@@ -538,12 +507,21 @@ export function RemindersPanel({ caseId, steps, agentReminders }: RemindersPanel
       )}
 
       {/* Pro Tips */}
-      <div className="rounded-lg border border-border bg-muted/30 p-4">
-        <p className="text-sm font-semibold mb-2">Pro Tips</p>
-        <ul className="text-sm text-muted-foreground space-y-1">
-          <li>• Government offices often have 15-30 day follow-up windows</li>
-          <li>• Always follow up on pending applications after the expected timeline</li>
-          <li>• Keep your browser notifications enabled to never miss a deadline</li>
+      <div className="bg-muted/30 rounded-2xl p-6">
+        <p className="font-semibold mb-3">Pro Tips</p>
+        <ul className="text-sm text-muted-foreground space-y-2">
+          <li className="flex items-start gap-2">
+            <span>•</span>
+            <span>Government offices often have 15-30 day follow-up windows</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span>•</span>
+            <span>Always follow up on pending applications after the expected timeline</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span>•</span>
+            <span>Keep your browser notifications enabled to never miss a deadline</span>
+          </li>
         </ul>
       </div>
     </div>

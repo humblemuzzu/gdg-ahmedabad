@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Playfair_Display, DM_Sans, JetBrains_Mono } from "next/font/google";
+import { ThemeProvider } from "@/lib/context/theme-context";
 import "./globals.css";
 
 const playfair = Playfair_Display({
@@ -38,17 +39,42 @@ export const metadata: Metadata = {
   },
 };
 
+// Script to prevent theme flash on page load
+const themeScript = `
+(function() {
+  try {
+    var theme = localStorage.getItem('bb-theme');
+    var root = document.documentElement;
+    
+    // Apply dark class for dark themes or default
+    if (!theme || theme === 'default' || theme === 'slate') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+  } catch (e) {
+    // Default to dark if localStorage is not available
+    document.documentElement.classList.add('dark');
+  }
+})();
+`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className="dark">
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body
         className={`${playfair.variable} ${dmSans.variable} ${jetbrainsMono.variable} antialiased min-h-screen bg-background text-foreground`}
       >
-        {children}
+        <ThemeProvider>
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );
