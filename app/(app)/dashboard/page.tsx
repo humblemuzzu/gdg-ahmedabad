@@ -9,12 +9,13 @@ import { ProcessRiskAnalysis } from "@/components/process/ProcessRiskAnalysis";
 import { ProcessResultSummary } from "@/components/process/ProcessResultSummary";
 import { ProcessTimeline } from "@/components/process/ProcessTimeline";
 import { ProcessCostBreakdown } from "@/components/process/ProcessCostBreakdown";
+import { FinalReport } from "@/components/process/FinalReport";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAnalysisContext } from "@/lib/context/analysis-context";
 
 export default function DashboardPage() {
-  const { agents, activities, risks, documents, steps, costs, result, isRunning, isComplete, status } = useAnalysisContext();
+  const { agents, activities, risks, documents, steps, costs, result, isRunning, isComplete, status, query } = useAnalysisContext();
 
   const activeAgentCount = agents.filter((a) => a.status === "working").length;
   const completedAgentCount = agents.filter((a) => a.status === "done").length;
@@ -115,6 +116,19 @@ export default function DashboardPage() {
         ))}
       </div>
 
+      {/* Final Report - Shows prominently when analysis is complete */}
+      {isComplete && result && (
+        <FinalReport 
+          result={result} 
+          isComplete={isComplete} 
+          query={query || undefined}
+          steps={steps}
+          costs={costs}
+          risks={risks}
+          documents={documents}
+        />
+      )}
+
       {/* Main Content Grid */}
       <div className="grid gap-6 lg:grid-cols-[1fr_400px]">
         {/* Left Column - Main Content */}
@@ -124,17 +138,17 @@ export default function DashboardPage() {
             <ProcessInput />
           </div>
 
-          {/* Result Summary - Shows after completion */}
-          <ProcessResultSummary result={result} isComplete={isComplete} />
+          {/* Result Summary - Shows after completion (smaller version below the main report) */}
+          {!isComplete && <ProcessResultSummary result={result} isComplete={isComplete} />}
 
-          {/* Timeline */}
-          {steps.length > 0 && <ProcessTimeline steps={steps} />}
+          {/* Timeline - Show during processing or if no complete result */}
+          {steps.length > 0 && !isComplete && <ProcessTimeline steps={steps} />}
 
-          {/* Costs */}
-          {costs.length > 0 && <ProcessCostBreakdown costs={costs} />}
+          {/* Costs - Show during processing or if no complete result */}
+          {costs.length > 0 && !isComplete && <ProcessCostBreakdown costs={costs} />}
 
-          {/* Risk Analysis */}
-          <ProcessRiskAnalysis risks={risks} />
+          {/* Risk Analysis - Show during processing or if no complete result */}
+          {!isComplete && <ProcessRiskAnalysis risks={risks} />}
         </div>
 
         {/* Right Column - Sidebar Content */}
@@ -176,8 +190,8 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          {/* Document Checklist */}
-          <DocumentChecklist documents={documents} />
+          {/* Document Checklist - Show during processing or if not complete */}
+          {!isComplete && <DocumentChecklist documents={documents} />}
         </div>
       </div>
     </div>

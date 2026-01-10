@@ -11,6 +11,12 @@ import type {
   ProcessDocument,
   Tier,
 } from "@/types";
+import {
+  saveCaseStart,
+  saveCaseResult,
+  saveCaseFailure,
+  appendCaseEvents,
+} from "@/lib/storage/caseStore";
 
 // Map agent IDs to display names and tiers
 const AGENT_INFO: Record<string, { name: string; tier: Tier }> = {
@@ -46,6 +52,7 @@ export type AnalysisStatus = "idle" | "running" | "complete" | "error";
 
 export interface AnalysisState {
   status: AnalysisStatus;
+  caseId: string | null;
   query: string | null;
   agents: Agent[];
   activities: AgentActivityStreamEvent[];
@@ -60,6 +67,7 @@ export interface AnalysisState {
 
 const initialState: AnalysisState = {
   status: "idle",
+  caseId: null,
   query: null,
   agents: [],
   activities: [],
@@ -70,6 +78,11 @@ const initialState: AnalysisState = {
   risks: [],
   documents: [],
 };
+
+// Generate unique case ID
+function generateCaseId(): string {
+  return `case_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
 
 // Convert ProcessResult to UI-friendly formats
 function resultToSteps(result: ProcessResult): ProcessStep[] {
@@ -165,10 +178,14 @@ export function useAnalysis() {
   }, []);
 
   const analyze = useCallback(async (query: string) => {
+    // Generate a new case ID
+    const caseId = generateCaseId();
+    
     // Reset and start
     setState({
       ...initialState,
       status: "running",
+      caseId,
       query,
       agents: Object.entries(AGENT_INFO).map(([id, info]) => ({
         id,
@@ -177,6 +194,14 @@ export function useAnalysis() {
         status: "idle",
       })),
     });
+
+    // Save case start to browser storage
+    try {
+      await saveCaseStart(caseId, query);
+      console.log("[Analysis] Case started and saved:", caseId);
+    } catch (e) {
+      console.error("[Analysis] Failed to save case start:", e);
+    }
 
     try {
       const response = await fetch("/api/analyze?stream=1", {
@@ -220,7 +245,7 @@ export function useAnalysis() {
             // Process the event
             try {
               const data = JSON.parse(eventData);
-              handleSSEEvent(eventType, data, setState);
+              handleSSEEvent(eventType, data, setState, caseId, query);
             } catch (e) {
               console.error("Failed to parse SSE data:", e);
             }
@@ -236,6 +261,13 @@ export function useAnalysis() {
         status: "error",
         error: message,
       }));
+      // Save failure to browser storage
+      try {
+        await saveCaseFailure(caseId, query, message);
+        console.log("[Analysis] Case failure saved:", caseId);
+      } catch (e) {
+        console.error("[Analysis] Failed to save case failure:", e);
+      }
     }
   }, []);
 
@@ -252,7 +284,9 @@ export function useAnalysis() {
 function handleSSEEvent(
   eventType: string,
   data: Record<string, unknown>,
-  setState: React.Dispatch<React.SetStateAction<AnalysisState>>
+  setState: React.Dispatch<React.SetStateAction<AnalysisState>>,
+  caseId: string,
+  query: string
 ) {
   switch (eventType) {
     case "meta":
@@ -298,6 +332,11 @@ function handleSSEEvent(
             severity: "info",
           };
           activities = [activity, ...prev.activities].slice(0, 20);
+          
+          // Save activity events to browser storage (async, don't block)
+          appendCaseEvents(caseId, [activity]).catch((e) => {
+            console.error("[Analysis] Failed to append events:", e);
+          });
         }
 
         return { ...prev, agents, activities };
@@ -343,6 +382,13 @@ function handleSSEEvent(
           
           console.log("[Analysis] Converted data:", { steps, costs, risks, documents });
           
+          // Save completed result to browser storage (async, don't block)
+          saveCaseResult(caseId, query, result, prev.activities).then(() => {
+            console.log("[Analysis] Case result saved to browser storage:", caseId);
+          }).catch((e) => {
+            console.error("[Analysis] Failed to save case result:", e);
+          });
+          
           return {
             ...prev,
             status: "complete",
@@ -371,6 +417,10 @@ function handleSSEEvent(
         status: "error",
         error: message,
       }));
+      // Save failure to browser storage
+      saveCaseFailure(caseId, query, message).catch((e) => {
+        console.error("[Analysis] Failed to save case failure:", e);
+      });
       break;
     }
   }
