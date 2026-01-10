@@ -106,7 +106,7 @@ export function DocumentChecklist({ documents = [] }: DocumentChecklistProps) {
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-foreground">All documents ready!</p>
-                    <p className="text-xs text-muted-foreground">You're prepared to start the process</p>
+                    <p className="text-xs text-muted-foreground">You&apos;re prepared to start the process</p>
                   </div>
                 </div>
               </div>

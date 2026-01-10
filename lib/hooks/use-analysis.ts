@@ -19,6 +19,90 @@ import {
   appendCaseEvents,
 } from "@/lib/storage/caseStore";
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function asString(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+function asNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function extractFirstJson(text: string): string | null {
+  const start = text.search(/[\[{]/);
+  if (start === -1) return null;
+
+  const stack: string[] = [];
+  let inString = false;
+  let escape = false;
+
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+
+    if (inString) {
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (ch === "\\") {
+        escape = true;
+        continue;
+      }
+      if (ch === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === "\"") {
+      inString = true;
+      continue;
+    }
+
+    if (ch === "{" || ch === "[") {
+      stack.push(ch);
+      continue;
+    }
+
+    if (ch === "}" || ch === "]") {
+      const expectedOpen = ch === "}" ? "{" : "[";
+      if (stack[stack.length - 1] !== expectedOpen) return null;
+      stack.pop();
+      if (stack.length === 0) return text.slice(start, i + 1);
+    }
+  }
+
+  return null;
+}
+
+function parseJsonLoose(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  if (!trimmed) return value;
+
+  const jsonMatch =
+    trimmed.match(/```json\s*([\s\S]*?)\s*```/) || trimmed.match(/```\s*([\s\S]*?)\s*```/);
+  const candidate = (jsonMatch ? jsonMatch[1] : trimmed).trim();
+
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    const extracted = extractFirstJson(candidate);
+    if (!extracted) return value;
+    try {
+      return JSON.parse(extracted);
+    } catch {
+      return value;
+    }
+  }
+}
+
+const ENABLE_SYNTHETIC_DEBATE = process.env.NEXT_PUBLIC_SYNTHETIC_DEBATE === "true";
+
 // Add demo_agent to support demo mode
 // Map agent IDs to display names and tiers
 const AGENT_INFO: Record<string, { name: string; tier: Tier }> = {
@@ -94,17 +178,20 @@ function generateCaseId(): string {
 
 // Generate synthetic debate messages for demo mode (makes the UI look impressive)
 function generateSyntheticDebateMessages(result: ProcessResult): DebateMessage[] {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const r = result as any;
+  const r = (result ?? {}) as unknown as Record<string, unknown>;
   const messages: DebateMessage[] = [];
   const now = Date.now();
   
   // Extract info from result
-  const businessType = r.business?.type || "business";
-  const city = r.location?.city || "the city";
-  const licensesCount = r.licenses?.length || 5;
-  const risks = r.risks?.items || [];
-  const timeline = r.timeline?.summary;
+  const business = asRecord(r.business);
+  const location = asRecord(r.location);
+  const businessType = asString(business?.type) || "business";
+  const city = asString(location?.city) || "the city";
+  const licensesCount = Array.isArray(r.licenses) ? r.licenses.length : 5;
+  const risksSource = asRecord(r.risks);
+  const risks = Array.isArray(risksSource?.items) ? risksSource.items : [];
+  const timeline = asRecord(asRecord(r.timeline)?.summary);
+  const documentsCount = Array.isArray(r.documents) ? r.documents.length : 3;
   
   // Generate messages simulating agent debate
   const debateScript: Array<{agent: string; name: string; tier: Tier; type: DebateMessage["type"]; content: string; delay: number}> = [
@@ -121,7 +208,9 @@ function generateSyntheticDebateMessages(result: ProcessResult): DebateMessage[]
       name: "Location Intel",
       tier: "intake",
       type: "insight",
-      content: `${city} identified. Found ${r.location?.specialRules?.length || 2} location-specific rules that apply.`,
+      content: `${city} identified. Found ${
+        Array.isArray(location?.specialRules) ? location!.specialRules.length : 2
+      } location-specific rules that apply.`,
       delay: 500
     },
     {
@@ -145,7 +234,7 @@ function generateSyntheticDebateMessages(result: ProcessResult): DebateMessage[]
       name: "Document Detective",
       tier: "research",
       type: "observation",
-      content: `Document checklist ready. ${r.documents?.length || 3} document categories identified with specific requirements.`,
+      content: `Document checklist ready. ${documentsCount} document categories identified with specific requirements.`,
       delay: 2000
     }
   ];
@@ -180,7 +269,9 @@ function generateSyntheticDebateMessages(result: ProcessResult): DebateMessage[]
       name: "Timeline Architect",
       tier: "strategy",
       type: "observation",
-      content: `Timeline estimate: ${timeline.minDays || 30}-${timeline.maxDays || 60} days. Critical path identified.`,
+      content: `Timeline estimate: ${
+        asNumber(timeline.minDays) ?? 30
+      }-${asNumber(timeline.maxDays) ?? 60} days. Critical path identified.`,
       delay: 3500
     });
   }
@@ -196,13 +287,19 @@ function generateSyntheticDebateMessages(result: ProcessResult): DebateMessage[]
   });
   
   // Add cost calculator
-  if (r.costs?.summary) {
+  const costs = asRecord(r.costs);
+  const costsSummary = asRecord(costs?.summary);
+  if (costsSummary) {
     debateScript.push({
       agent: "cost_calculator",
       name: "Cost Calculator",
       tier: "strategy",
       type: "insight",
-      content: `Cost analysis complete. Official fees: Rs ${r.costs.summary.officialTotal || 15000}. Practical budget: Rs ${r.costs.summary.practicalRange?.min || 25000}-${r.costs.summary.practicalRange?.max || 45000}.`,
+      content: `Cost analysis complete. Official fees: Rs ${
+        asNumber(costsSummary.officialTotal) ?? 15000
+      }. Practical budget: Rs ${
+        asNumber(asRecord(costsSummary.practicalRange)?.min) ?? 25000
+      }-${asNumber(asRecord(costsSummary.practicalRange)?.max) ?? 45000}.`,
       delay: 4500
     });
   }
@@ -235,147 +332,368 @@ function generateSyntheticDebateMessages(result: ProcessResult): DebateMessage[]
 }
 
 // Normalize the result to handle both demo and full pipeline formats
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function normalizeResult(rawResult: any): ProcessResult | null {
-  if (!rawResult || typeof rawResult !== "object") return null;
+function normalizeResult(rawResult: Record<string, unknown>): ProcessResult | null {
+  if (!rawResult) return null;
   
-  // Normalize intent
-  const intent = rawResult.intent || {};
+  const toStringArray = (value: unknown): string[] => {
+    if (Array.isArray(value)) return value.map((v) => String(v));
+    if (typeof value === "string" && value.trim()) return [value];
+    return [];
+  };
+
+  const intentSource = asRecord(rawResult["intent"]) ?? {};
+  const locationSource = asRecord(rawResult["location"]) ?? asRecord(intentSource["location"]) ?? {};
+  const businessSource = asRecord(rawResult["business"]) ?? {};
+
   const normalizedIntent = {
-    intent: intent.primary || intent.intent || "QUERY_REQUIREMENTS",
-    businessTypeId: intent.businessTypeId || rawResult.business?.type || null,
-    confidence: Number(intent.confidence || 0.8),
-    clarifyingQuestions: intent.clarifyingQuestions || [],
-    urgency: intent.urgency || "normal",
+    intent: String(intentSource["intent"] || intentSource["primary"] || "QUERY_REQUIREMENTS"),
+    businessTypeId: (intentSource["businessTypeId"] || businessSource["typeId"] || businessSource["type"] || null) as
+      | string
+      | null,
+    businessSubTypeId: (intentSource["businessSubTypeId"] || businessSource["subTypeId"] || businessSource["subType"] || null) as
+      | string
+      | null,
+    location: {
+      city:
+        (asRecord(intentSource["location"])?.["city"] as string | null | undefined) ||
+        (locationSource["city"] as string | null | undefined) ||
+        null,
+      state:
+        (asRecord(intentSource["location"])?.["state"] as string | null | undefined) ||
+        (locationSource["state"] as string | null | undefined) ||
+        null,
+    },
+    urgency: String(intentSource["urgency"] || "normal"),
+    confidence: Number(intentSource["confidence"] ?? 0.8),
+    clarifyingQuestions: toStringArray(
+      intentSource["clarifyingQuestions"] || intentSource["clarificationsNeeded"] || intentSource["questions"]
+    ),
+    rawEntities: (intentSource["rawEntities"] || intentSource["entities"] || undefined) as Record<string, unknown> | undefined,
   };
-  
-  // Normalize location
-  const location = rawResult.location || {};
+
   const normalizedLocation = {
-    state: location.state || null,
-    city: location.city || null,
-    municipality: location.municipality || null,
-    zone: location.zone || "unknown",
-    specialRules: location.specialRules || [],
+    state: (locationSource["state"] as string | null | undefined) || null,
+    stateId: (locationSource["stateId"] as string | null | undefined) || null,
+    city: (locationSource["city"] as string | null | undefined) || null,
+    municipality: (locationSource["municipality"] as string | null | undefined) || null,
+    zone: (locationSource["zone"] as string | undefined) || "unknown",
+    specialRules: toStringArray(locationSource["specialRules"]),
+    stateVariations: toStringArray(locationSource["stateVariations"]),
   };
-  
-  // Normalize business
-  const business = rawResult.business || {};
+
   const normalizedBusiness = {
-    id: business.id || business.type || null,
-    name: business.name || business.type || business.description || null,
-    subTypeId: business.subTypeId || business.subType || null,
+    id: (businessSource["id"] || businessSource["typeId"] || businessSource["type"] || null) as string | null,
+    subTypeId: (businessSource["subTypeId"] || businessSource["subType"] || null) as string | null,
+    name: (businessSource["name"] || businessSource["type"] || businessSource["description"] || null) as string | null,
   };
-  
-  // Normalize risks
-  const risks = rawResult.risks || {};
+
+  const normalizeRiskSeverity = (value: unknown): "low" | "medium" | "high" => {
+    const v = String(value || "").toLowerCase();
+    if (v === "critical") return "high";
+    if (v === "high") return "high";
+    if (v === "low") return "low";
+    return "medium";
+  };
+
+  const normalizeRiskUrgency = (value: unknown): "immediate" | "soon" | "later" => {
+    const v = String(value || "").toLowerCase();
+    if (v === "immediate") return "immediate";
+    if (v === "soon") return "soon";
+    return "later";
+  };
+
+  const normalizeRiskType = (
+    value: unknown
+  ): "DELAY" | "BRIBE_REQUEST" | "DOCUMENT_ISSUE" | "ZONE_ISSUE" | "REJECTION" | "OTHER" => {
+    const v = String(value || "").toUpperCase();
+    if (v === "DELAY") return "DELAY";
+    if (v === "BRIBE_REQUEST") return "BRIBE_REQUEST";
+    if (v === "DOCUMENT_ISSUE") return "DOCUMENT_ISSUE";
+    if (v === "ZONE_ISSUE") return "ZONE_ISSUE";
+    if (v === "REJECTION") return "REJECTION";
+    return "OTHER";
+  };
+
+  const normalizeCostKind = (value: unknown): "official_fee" | "practical_cost" => {
+    const v = String(value || "").toLowerCase();
+    if (v === "official_fee") return "official_fee";
+    if (v === "practical_cost") return "practical_cost";
+    return v === "official" ? "official_fee" : "practical_cost";
+  };
+
+  const licensesValue = rawResult["licenses"];
+  const licenses = Array.isArray(licensesValue)
+    ? licensesValue.map((license: unknown, idx: number) => {
+        const lic = asRecord(license) ?? {};
+        const timeline = asRecord(lic["timeline"]);
+        const timelineDaysRecord = asRecord(lic["timelineDays"]);
+        const timelineDays = timelineDaysRecord
+          ? {
+              min: Number(timelineDaysRecord["min"] ?? timelineDaysRecord["minDays"] ?? 0),
+              max: Number(timelineDaysRecord["max"] ?? timelineDaysRecord["maxDays"] ?? 0),
+              avg: Number(
+                timelineDaysRecord["avg"] ??
+                  (Number(timelineDaysRecord["min"] ?? timelineDaysRecord["minDays"] ?? 0) +
+                    Number(timelineDaysRecord["max"] ?? timelineDaysRecord["maxDays"] ?? 0)) /
+                    2
+              ),
+            }
+          : timeline
+            ? {
+                min: Number(timeline["minDays"] ?? timeline["min"] ?? 0),
+                max: Number(timeline["maxDays"] ?? timeline["max"] ?? 0),
+                avg: Number(
+                  timeline["avgDays"] ??
+                    timeline["avg"] ??
+                    (Number(timeline["minDays"] ?? timeline["min"] ?? 0) +
+                      Number(timeline["maxDays"] ?? timeline["max"] ?? 0)) /
+                      2
+                ),
+              }
+            : undefined;
+        return {
+          id: String(lic["id"] || `license-${idx}`),
+          name: String(lic["name"] || lic["title"] || "License"),
+          authority: lic["authority"] ? String(lic["authority"]) : undefined,
+          timelineDays,
+          feesInr: (lic["feesInr"] || lic["fees"] || undefined) as unknown,
+        };
+      })
+    : [];
+
+  const docsContainer = rawResult["documents"];
+  const docsRecord = asRecord(docsContainer);
+  const rawDocs = (docsRecord && Array.isArray(docsRecord["groups"])) ? docsRecord["groups"] : docsContainer;
+  const documentGroups: ProcessResult["documents"] = Array.isArray(rawDocs)
+    ? rawDocs
+        .map((group: unknown, gidx: number) => {
+          const g = asRecord(group);
+          if (g && Array.isArray(g["items"])) {
+            return {
+              title: String(g["title"] || g["name"] || `Documents ${gidx + 1}`),
+              items: (g["items"] as unknown[]).map((item: unknown, didx: number) => {
+                const it = asRecord(item) ?? {};
+                return {
+                  id: String(it["id"] || `doc-${gidx}-${didx}`),
+                  name: String(it["name"] || it["title"] || "Document"),
+                  required: it["required"] !== false,
+                  specification: (it["specification"] || it["details"] || undefined) as string | undefined,
+                  tips: toStringArray(it["tips"] ?? it["notes"]),
+                };
+              }),
+            };
+          }
+          return null;
+        })
+        .filter((v): v is NonNullable<typeof v> => v !== null)
+    : [];
+
+  const timelineContainer = rawResult["timeline"];
+  const timelineRecord = asRecord(timelineContainer);
+  const rawTimeline =
+    (timelineRecord && Array.isArray(timelineRecord["items"])) ? timelineRecord["items"] : timelineContainer;
+  const timeline: ProcessResult["timeline"] = Array.isArray(rawTimeline)
+    ? rawTimeline.map((item: unknown, idx: number) => {
+        const it = asRecord(item) ?? {};
+        const estimate = (it["estimateDays"] || it["timelineDays"] || it["timeline"]) as unknown;
+        const estimateRecord = asRecord(estimate) ?? {};
+        const estimateDays = {
+          min: Number(estimateRecord["minDays"] ?? estimateRecord["min"] ?? 0),
+          max: Number(estimateRecord["maxDays"] ?? estimateRecord["max"] ?? 0),
+          avg: Number(
+            estimateRecord["avgDays"] ??
+              estimateRecord["avg"] ??
+              (Number(estimateRecord["minDays"] ?? estimateRecord["min"] ?? 0) +
+                Number(estimateRecord["maxDays"] ?? estimateRecord["max"] ?? 0)) /
+                2
+          ),
+        };
+        return {
+          id: String(it["id"] || `step-${idx}`),
+          name: String(it["name"] || it["title"] || `Step ${idx + 1}`),
+          estimateDays,
+          canRunInParallelWith: toStringArray(it["canRunInParallelWith"] || it["parallelWith"]),
+          prerequisites: toStringArray(it["prerequisites"] || it["dependsOn"]),
+          notes: toStringArray(it["notes"] || it["tips"]),
+        };
+      })
+    : [];
+
+  const risksSource = asRecord(rawResult["risks"]) ?? {};
+  const riskItems = Array.isArray(risksSource["items"]) ? (risksSource["items"] as unknown[]) : [];
   const normalizedRisks = {
-    riskScore0to10: Number(risks.riskScore0to10 || risks.overallScore || risks.riskScore || 5),
-    items: risks.items || [],
-    preventiveMeasures: risks.preventiveMeasures || [],
+    riskScore0to10: Number(risksSource["riskScore0to10"] || risksSource["overallScore"] || risksSource["riskScore"] || 0),
+    items: riskItems.map((item: unknown) => {
+      const it = asRecord(item) ?? {};
+      return {
+        type: normalizeRiskType(it["type"]),
+        severity: normalizeRiskSeverity(it["severity"]),
+        description: String(it["description"] || it["title"] || "Risk"),
+        action: String(it["action"] || it["mitigation"] || "Review and address"),
+        urgency: normalizeRiskUrgency(it["urgency"]),
+      };
+    }),
+    preventiveMeasures: toStringArray(risksSource["preventiveMeasures"]),
   };
-  
-  // Normalize costs  
-  const costs = rawResult.costs || {};
+
+  const costsSource = asRecord(rawResult["costs"]) ?? {};
+  const officialFeesInr = Number(
+    costsSource["officialFeesInr"] ||
+      asRecord(costsSource["summary"])?.["officialTotal"] ||
+      asRecord(costsSource["summary"])?.["officialFeesTotal"] ||
+      costsSource["totalOfficialFees"] ||
+      0
+  );
+  const practicalRange = costsSource["practicalCostsInrRange"] || asRecord(costsSource["summary"])?.["practicalRange"] || costsSource["practicalRange"];
+  const practicalRangeRecord = asRecord(practicalRange);
+  const practicalCostsInrRange = practicalRangeRecord
+    ? {
+        min: Number(practicalRangeRecord["min"] ?? 0),
+        max: Number(practicalRangeRecord["max"] ?? 0),
+      }
+    : undefined;
+  const lineItemsValue = costsSource["lineItems"];
+  const lineItems = Array.isArray(lineItemsValue)
+    ? (lineItemsValue as unknown[])
+    : [
+        ...(asRecord(costsSource["breakdown"])?.["officialFees"] as unknown[] | undefined || []),
+        ...(asRecord(costsSource["breakdown"])?.["practicalCosts"] as unknown[] | undefined || []),
+      ]
+        .filter(Boolean)
+        .map((li: unknown, idx: number) => {
+          const it = asRecord(li) ?? {};
+          const rangeRecord = asRecord(it["rangeInr"] ?? it["range"]);
+          const rangeInr = rangeRecord
+            ? {
+                min: Number(rangeRecord["min"] ?? 0),
+                max: Number(rangeRecord["max"] ?? 0),
+              }
+            : undefined;
+          const amountInrValue = it["amountInr"] ?? it["amount"];
+          const amountInr = typeof amountInrValue === "number" ? amountInrValue : undefined;
+          const notes = toStringArray(it["notes"]);
+          return {
+            id: String(it["id"] || `cost-${idx}`),
+            name: String(it["name"] || it["label"] || "Cost"),
+            kind: normalizeCostKind(it["kind"] || (it["category"] === "official" ? "official_fee" : "practical_cost")),
+            amountInr,
+            rangeInr,
+            notes: notes.length ? notes : undefined,
+          };
+        });
+
   const normalizedCosts = {
-    officialFeesInr: Number(costs.officialFeesInr || costs.summary?.officialTotal || costs.totalOfficialFees || 0),
-    practicalCostsInrRange: costs.practicalCostsInrRange || costs.summary?.practicalRange || costs.practicalRange,
-    lineItems: costs.lineItems || [],
+    officialFeesInr,
+    practicalCostsInrRange,
+    lineItems,
   };
-  
+
+  const outputsSource = asRecord(rawResult["outputs"]) ?? {};
+  const normalizedOutputs = {
+    visitPlan: outputsSource["visitPlan"] ?? rawResult["visitPlan"] ?? rawResult["weeklyPlan"] ?? undefined,
+    reminders: outputsSource["reminders"] ?? rawResult["reminders"] ?? undefined,
+    statusTracking: outputsSource["statusTracking"] ?? rawResult["statusTracking"] ?? undefined,
+    stateComparison: outputsSource["stateComparison"] ?? rawResult["stateComparison"] ?? rawResult["comparison"] ?? undefined,
+    whatIf: outputsSource["whatIf"] ?? rawResult["whatIf"] ?? rawResult["whatif"] ?? undefined,
+    expertAdvice: outputsSource["expertAdvice"] ?? rawResult["expertAdvice"] ?? undefined,
+  };
+
+  const draftsSource = rawResult["drafts"];
+  const drafts: ProcessResult["drafts"] = [];
+  if (Array.isArray(draftsSource)) {
+    for (const item of draftsSource) {
+      const it = asRecord(item);
+      const kind = asString(it?.kind);
+      const title = asString(it?.title);
+      const body = asString(it?.body);
+      const normalizedKind =
+        kind === "RTI" || kind === "GRIEVANCE" || kind === "APPEAL" ? (kind as "RTI" | "GRIEVANCE" | "APPEAL") : null;
+      if (normalizedKind && title && body) drafts.push({ kind: normalizedKind, title, body });
+    }
+  } else {
+    const d = asRecord(draftsSource);
+    const push = (kind: "RTI" | "GRIEVANCE" | "APPEAL", value: unknown) => {
+      const v = asRecord(value);
+      const title = asString(v?.title) || `${kind} Draft`;
+      const body = asString(v?.body) || "";
+      if (body) drafts.push({ kind, title, body });
+    };
+    if (d?.rti) push("RTI", d.rti);
+    if (d?.grievance) push("GRIEVANCE", d.grievance);
+    if (d?.appeal) push("APPEAL", d.appeal);
+  }
+
+  const queryValue =
+    typeof rawResult["query"] === "string"
+      ? (rawResult["query"] as string)
+      : (asRecord(rawResult["query"])?.["original"] as string | undefined) ||
+        (asRecord(rawResult["query"])?.["interpreted"] as string | undefined) ||
+        "";
+
   return {
-    ...rawResult,
+    query: String(queryValue || ""),
     intent: normalizedIntent,
     location: normalizedLocation,
     business: normalizedBusiness,
-    risks: normalizedRisks,
+    licenses,
+    documents: documentGroups,
+    dependencyGraph: (rawResult["dependencyGraph"] || rawResult["dependencies"] || undefined) as unknown as ProcessResult["dependencyGraph"],
+    timeline,
     costs: normalizedCosts,
+    risks: normalizedRisks,
+    outputs: normalizedOutputs,
+    drafts,
+    meta: (rawResult["meta"] as Record<string, unknown> | undefined) || undefined,
   } as ProcessResult;
 }
 
 // Convert ProcessResult to UI-friendly formats
 function resultToSteps(result: ProcessResult): ProcessStep[] {
-  // Handle both "timeline" array and "timeline.items" array formats
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rawResult = result as any;
-  const timeline = rawResult.timeline?.items || rawResult.timeline;
-  if (!Array.isArray(timeline) || !timeline.length) return [];
-  
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return timeline.map((item: any, idx: number) => ({
+  if (!Array.isArray(result.timeline) || !result.timeline.length) return [];
+  return result.timeline.map((item, idx) => ({
     id: String(item.id || `step-${idx}`),
-    title: String(item.name || item.title || "Step"),
-    owner: String(item.owner || "Citizen"),
-    eta: item.estimateDays && typeof item.estimateDays === "object"
-      ? `${item.estimateDays.min || 0}-${item.estimateDays.max || 0} days`
-      : String(item.eta || item.timeline || "TBD"),
-    status: idx === 0 ? "in_progress" as const : "pending" as const,
-    notes: Array.isArray(item.notes) ? item.notes.join("; ") : (item.notes || undefined),
+    title: String(item.name || "Step"),
+    owner: "Citizen",
+    eta: `${item.estimateDays?.min || 0}-${item.estimateDays?.max || 0} days`,
+    status: idx === 0 ? ("in_progress" as const) : ("pending" as const),
+    notes: Array.isArray(item.notes) ? item.notes.join("; ") : undefined,
   }));
 }
 
 function resultToCosts(result: ProcessResult): ProcessCost[] {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rawResult = result as any;
-  const lineItems = rawResult.costs?.lineItems;
+  const lineItems = result.costs?.lineItems;
   if (!Array.isArray(lineItems) || !lineItems.length) return [];
-  
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return lineItems.map((item: any, idx: number) => ({
+  return lineItems.map((item, idx) => ({
     id: String(item.id || `cost-${idx}`),
-    label: String(item.name || item.label || "Cost"),
-    amountINR: Number(item.amountInr || item.amountINR || item.amount || item.rangeInr?.min || 0),
-    note: Array.isArray(item.notes) ? item.notes.join("; ") : (item.note || item.notes || undefined),
+    label: String(item.name || "Cost"),
+    amountINR: Number(item.amountInr ?? item.rangeInr?.min ?? 0),
+    note: Array.isArray(item.notes) ? item.notes.join("; ") : undefined,
   }));
 }
 
 function resultToRisks(result: ProcessResult): ProcessRisk[] {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rawResult = result as any;
-  const items = rawResult.risks?.items;
+  const items = result.risks?.items;
   if (!Array.isArray(items) || !items.length) return [];
-  
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return items.map((item: any, idx: number) => ({
+  return items.map((item, idx) => ({
     id: `risk-${idx}`,
-    title: String(item.title || item.description || "Risk"),
-    severity: (item.severity as "low" | "medium" | "high") || "medium",
-    mitigation: String(item.action || item.mitigation || "Review and address"),
+    title: String(item.description || "Risk"),
+    severity: item.severity || "medium",
+    mitigation: String(item.action || "Review and address"),
   }));
 }
 
 function resultToDocuments(result: ProcessResult): ProcessDocument[] {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rawResult = result as any;
-  const documents = rawResult.documents;
-  
-  if (!Array.isArray(documents) || !documents.length) return [];
-  
+  if (!Array.isArray(result.documents) || !result.documents.length) return [];
   const docs: ProcessDocument[] = [];
-  
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  documents.forEach((group: any) => {
-    // Handle grouped format { title, items: [...] }
-    if (group.items && Array.isArray(group.items)) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      group.items.forEach((item: any) => {
-        docs.push({
-          id: String(item.id || `doc-${docs.length}`),
-          title: String(item.name || item.title || "Document"),
-          optional: item.required === false || item.optional === true,
-        });
-      });
-    } 
-    // Handle flat format [{ id, name, required }]
-    else if (group.id || group.name || group.title) {
+  result.documents.forEach((group) => {
+    group.items.forEach((item) => {
       docs.push({
-        id: String(group.id || `doc-${docs.length}`),
-        title: String(group.name || group.title || "Document"),
-        optional: group.required === false || group.optional === true,
+        id: String(item.id || `doc-${docs.length}`),
+        title: String(item.name || "Document"),
+        optional: item.required === false,
       });
-    }
+    });
   });
-  
   return docs;
 }
 
@@ -443,23 +761,26 @@ export function useAnalysis() {
         buffer = lines.pop() || "";
 
         let eventType = "";
-        let eventData = "";
+        let eventDataLines: string[] = [];
 
-        for (const line of lines) {
-          if (line.startsWith("event: ")) {
-            eventType = line.slice(7).trim();
-          } else if (line.startsWith("data: ")) {
-            eventData = line.slice(6);
-          } else if (line === "" && eventType && eventData) {
-            // Process the event
-            try {
-              const data = JSON.parse(eventData);
-              handleSSEEvent(eventType, data, setState, caseId, query);
-            } catch (e) {
-              console.error("Failed to parse SSE data:", e);
+        for (const rawLine of lines) {
+          const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
+
+          if (line.startsWith("event:")) {
+            eventType = line.slice("event:".length).trim();
+          } else if (line.startsWith("data:")) {
+            eventDataLines.push(line.slice("data:".length).trimStart());
+          } else if (line.trim() === "") {
+            if (eventType && eventDataLines.length) {
+              try {
+                const data = JSON.parse(eventDataLines.join("\n"));
+                handleSSEEvent(eventType, data, setState, caseId, query);
+              } catch (e) {
+                console.error("Failed to parse SSE data:", e);
+              }
             }
             eventType = "";
-            eventData = "";
+            eventDataLines = [];
           }
         }
       }
@@ -565,24 +886,12 @@ function handleSSEEvent(
           : JSON.stringify(rawResult)?.slice(0, 500)
       );
       
-      // Parse string result if needed
-      let parsed: unknown = rawResult;
-      if (typeof rawResult === "string") {
-        try {
-          // Try to extract JSON from string (might have markdown backticks)
-          const jsonMatch = rawResult.match(/```json\s*([\s\S]*?)\s*```/) || 
-                           rawResult.match(/```\s*([\s\S]*?)\s*```/);
-          const jsonStr = jsonMatch ? jsonMatch[1] : rawResult;
-          parsed = JSON.parse(jsonStr.trim());
-        } catch (e) {
-          console.error("[Analysis] Failed to parse result string:", e);
-          parsed = null;
-        }
-      }
+      const parsed = parseJsonLoose(rawResult);
       
       // Normalize the result to handle both demo and full pipeline formats
-      if (parsed && typeof parsed === "object") {
-        result = normalizeResult(parsed);
+      const parsedRecord = asRecord(parsed);
+      if (parsedRecord) {
+        result = normalizeResult(parsedRecord);
         console.log("[Analysis] Normalized result:", result ? "SUCCESS" : "FAILED");
       }
 
@@ -606,12 +915,11 @@ function handleSSEEvent(
             documentsCount: documents.length 
           });
           
-          // Generate synthetic debate messages if none exist (demo mode)
-          let debateMessages = prev.debateMessages;
-          if (debateMessages.length === 0) {
-            console.log("[Analysis] Generating synthetic debate messages for demo mode");
-            debateMessages = generateSyntheticDebateMessages(result);
-          }
+          // Optional: synthetic debate (off by default; real debate streams from the server)
+          const debateMessages =
+            prev.debateMessages.length === 0 && ENABLE_SYNTHETIC_DEBATE
+              ? generateSyntheticDebateMessages(result)
+              : prev.debateMessages;
           
           // Save completed result to browser storage (async, don't block)
           saveCaseResult(caseId, query, result, prev.activities).then(() => {

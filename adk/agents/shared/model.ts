@@ -1,11 +1,23 @@
 import { Gemini } from "@google/adk";
 
+function sanitizeApiKey(key: string): string {
+  let value = key.trim();
+  if (
+    (value.startsWith("\"") && value.endsWith("\"")) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    value = value.slice(1, -1).trim();
+  }
+  return value;
+}
+
 function getApiKey(): string | undefined {
-  const key = 
+  const raw =
     process.env.GOOGLE_GENAI_API_KEY ||
     process.env.GEMINI_API_KEY ||
     process.env.GOOGLE_API_KEY ||
     undefined;
+  const key = raw ? sanitizeApiKey(raw) : undefined;
   
   if (!key) {
     console.error("[Model] ERROR: No API key found!");
@@ -34,4 +46,3 @@ export function makeGemini(model: string): Gemini {
 
 export const DEFAULT_MODEL_NAME = process.env.BB_GEMINI_MODEL || "gemini-2.0-flash";
 export const defaultModel = makeGemini(DEFAULT_MODEL_NAME);
-

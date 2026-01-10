@@ -257,16 +257,16 @@ export default function Home() {
           <div className="mt-16 flex flex-wrap items-center justify-center gap-4">
             <p className="w-full mb-2 text-base font-medium text-muted-foreground">Try asking:</p>
             <Badge variant="secondary" className="text-sm px-5 py-2.5 font-medium hover-lift cursor-pointer">
-              "Mumbai mein restaurant kholna hai"
+              &ldquo;Mumbai mein restaurant kholna hai&rdquo;
             </Badge>
             <Badge variant="secondary" className="text-sm px-5 py-2.5 font-medium hover-lift cursor-pointer">
-              "Starting an IT company in Bangalore"
+              &ldquo;Starting an IT company in Bangalore&rdquo;
             </Badge>
             <Badge variant="secondary" className="text-sm px-5 py-2.5 font-medium hover-lift cursor-pointer">
-              "Export business license requirements"
+              &ldquo;Export business license requirements&rdquo;
             </Badge>
             <Badge variant="secondary" className="text-sm px-5 py-2.5 font-medium hover-lift cursor-pointer">
-              "My Fire NOC is stuck for 60 days"
+              &ldquo;My Fire NOC is stuck for 60 days&rdquo;
             </Badge>
           </div>
         </div>
@@ -354,11 +354,11 @@ export default function Home() {
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
           <div className="text-center">
             <h2 className="font-display text-3xl font-bold tracking-tight lg:text-5xl">
-              Every Indian's Bureaucracy Nightmare,{" "}
+              Every Indian&apos;s Bureaucracy Nightmare,{" "}
               <span className="text-primary">Solved</span>
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-lg text-muted-foreground">
-              Starting a business? Getting a license? We know the pain. Here's how we fix it.
+              Starting a business? Getting a license? We know the pain. Here&apos;s how we fix it.
             </p>
           </div>
 
@@ -390,7 +390,7 @@ export default function Home() {
           <div className="text-center">
             <h2 className="font-display text-3xl font-bold tracking-tight lg:text-5xl">
               Features That Make Judges Say{" "}
-              <span className="text-primary">"Wait, This Was Built in 32 Hours?!"</span>
+              <span className="text-primary">&ldquo;Wait, This Was Built in 32 Hours?!&rdquo;</span>
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-lg text-muted-foreground">
               Not just a chatbot. A complete AI-powered system with unique capabilities.
@@ -538,7 +538,7 @@ export default function Home() {
           <div className="mt-16 text-center">
             <Card className="inline-block p-8 max-w-3xl">
               <p className="text-lg font-medium italic text-foreground quote-mark">
-                In India, you don't just start a business. You navigate a maze of 50+ licenses, 100+ forms, and 10+ departments. We're building the GPS for that maze.
+                In India, you don&apos;t just start a business. You navigate a maze of 50+ licenses, 100+ forms, and 10+ departments. We&apos;re building the GPS for that maze.
               </p>
             </Card>
           </div>
