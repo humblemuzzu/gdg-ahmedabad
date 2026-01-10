@@ -1,215 +1,151 @@
 "use client";
 
 import * as React from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { useAnalysisContext } from "@/lib/context/analysis-context";
 
-const examples = [
-  "Ahmedabad me cafe kholna hai - licenses, timeline, aur total kharcha?",
-  "Gujarat me GST registration karna hai - step-by-step checklist",
-  "Society NOC ke bina shop license possible hai?",
-  "Fire NOC me kya documents lagte hai?",
+const suggestions = [
+  { label: "Open a Cafe", query: "Ahmedabad me cafe kholna hai - licenses, timeline, aur total kharcha?" },
+  { label: "GST Registration", query: "Gujarat me GST registration karna hai - step-by-step checklist" },
+  { label: "Shop License", query: "Society NOC ke bina shop license possible hai?" },
+  { label: "Fire NOC", query: "Fire NOC me kya documents lagte hai?" },
+  { label: "Restaurant", query: "Mumbai me restaurant kholna hai - complete guide" },
 ];
 
 export function ProcessInput() {
-  const [value, setValue] = React.useState(examples[0]);
-  const { analyze, isRunning, isComplete, hasError, error, query } = useAnalysisContext();
+  const [value, setValue] = React.useState("");
+  const [isFocused, setIsFocused] = React.useState(false);
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const context = useAnalysisContext();
+  const { analyze, isRunning } = context;
+  const startDemo = "startDemo" in context ? context.startDemo : undefined;
 
   const handleSubmit = async () => {
     if (!value.trim() || isRunning) return;
     await analyze(value.trim());
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
+
+  const handleDemo = async () => {
+    if (startDemo && typeof startDemo === "function") {
+      await startDemo();
+    }
+  };
+
+  // Auto-resize textarea
+  React.useEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = "auto";
+      textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+    }
+  }, [value]);
+
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <CardTitle className="text-lg">Describe Your Goal</CardTitle>
-            <CardDescription>Hinglish works great. Keep it simple and specific.</CardDescription>
-          </div>
-          {isRunning && (
-            <Badge variant="info" className="animate-pulse">
-              Processing...
-            </Badge>
+    <div className="w-full max-w-2xl mx-auto">
+      {/* Greeting */}
+      <div className="text-center mb-8">
+        <h1 className="text-3xl md:text-4xl font-medium text-foreground tracking-tight">
+          What can we help you with?
+        </h1>
+        <p className="mt-3 text-muted-foreground">
+          Describe your business goal in Hindi or English
+        </p>
+      </div>
+
+      {/* Input Container */}
+      <div
+        className={cn(
+          "relative rounded-2xl border bg-card/50 backdrop-blur-sm transition-all duration-200",
+          isFocused
+            ? "border-foreground/30 shadow-lg shadow-foreground/5"
+            : "border-foreground/15 hover:border-foreground/25",
+          isRunning && "opacity-70 pointer-events-none"
+        )}
+      >
+        {/* Textarea */}
+        <textarea
+          ref={textareaRef}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          onKeyDown={handleKeyDown}
+          placeholder="e.g. Ahmedabad me cafe kholna hai..."
+          disabled={isRunning}
+          rows={1}
+          className={cn(
+            "w-full resize-none bg-transparent px-5 pt-5 pb-16 text-base placeholder:text-muted-foreground/60 focus:outline-none",
+            "min-h-[60px] max-h-[200px]"
           )}
-          {isComplete && <Badge variant="success">Complete</Badge>}
-          {hasError && <Badge variant="destructive">Error</Badge>}
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="relative">
-          <Textarea
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            placeholder="e.g. Ahmedabad me cafe kholna hai..."
-            className="min-h-36 text-base"
-            disabled={isRunning}
-          />
-          <div className="absolute bottom-3 right-3 text-xs text-muted-foreground">
-            {value.length}/500
-          </div>
-        </div>
+        />
 
-        {/* Example prompts */}
-        <div>
-          <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
-            Try these examples
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {examples.map((e, i) => (
-              <button
-                key={e}
-                type="button"
-                onClick={() => setValue(e)}
-                disabled={isRunning}
-                className={`fade-in stagger-${i + 1} rounded-lg border-2 border-border bg-muted/30 px-3 py-2 text-left text-xs text-muted-foreground transition-all hover:border-primary hover:bg-primary/5 hover:text-foreground disabled:opacity-50`}
-              >
-                {e}
-              </button>
-            ))}
-          </div>
-        </div>
+        {/* Bottom Bar */}
+        <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-4 py-3">
+          {/* Left side - Demo button */}
+          <button
+            type="button"
+            onClick={handleDemo}
+            disabled={isRunning || !startDemo}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors disabled:opacity-50"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
+            </svg>
+            <span>Try Demo</span>
+          </button>
 
-        {/* Action row */}
-        <div className="flex items-center justify-between gap-4 border-t-2 border-border pt-4">
-          <p className="text-xs text-muted-foreground">
-            {isRunning
-              ? "Agents are analyzing your query..."
-              : "Connected to AI agents"}
-          </p>
-          <Button
+          {/* Right side - Submit button */}
+          <button
             type="button"
             onClick={handleSubmit}
-            size="lg"
             disabled={isRunning || !value.trim()}
+            className={cn(
+              "flex items-center justify-center w-10 h-10 rounded-xl transition-all",
+              value.trim()
+                ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-md shadow-primary/20"
+                : "bg-muted text-muted-foreground"
+            )}
           >
             {isRunning ? (
-              <>
-                <svg
-                  className="h-4 w-4 animate-spin"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  />
-                </svg>
-                Analyzing...
-              </>
+              <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
             ) : (
-              <>
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z"
-                  />
-                </svg>
-                Generate Plan
-              </>
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" />
+              </svg>
             )}
-          </Button>
+          </button>
         </div>
+      </div>
 
-        {/* Error state */}
-        {hasError && error && (
-          <div className="fade-in rounded-xl border-2 border-destructive/30 bg-destructive/5 px-5 py-4">
-            <div className="flex items-start gap-3">
-              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-destructive text-destructive-foreground">
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
-                  />
-                </svg>
-              </div>
-              <div>
-                <p className="font-semibold text-foreground">Analysis Failed</p>
-                <p className="mt-1 text-sm text-muted-foreground">{error}</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Running state */}
-        {isRunning && (
-          <div className="fade-in rounded-xl border-2 border-info/30 bg-info/5 px-5 py-4">
-            <div className="flex items-start gap-3">
-              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-info text-info-foreground">
-                <svg
-                  className="h-4 w-4 animate-spin"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  />
-                </svg>
-              </div>
-              <div>
-                <p className="font-semibold text-foreground">AI Agents Working</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  25 specialized agents are analyzing your query. Watch the activity stream for live updates.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Complete state */}
-        {isComplete && query && (
-          <div className="fade-in rounded-xl border-2 border-success/30 bg-success/5 px-5 py-4">
-            <div className="flex items-start gap-3">
-              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-success text-success-foreground">
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="m4.5 12.75 6 6 9-13.5"
-                  />
-                </svg>
-              </div>
-              <div>
-                <p className="font-semibold text-foreground">Analysis Complete</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Results for: <span className="font-medium text-foreground">{query}</span>
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      {/* Suggestions */}
+      <div className="flex flex-wrap items-center justify-center gap-2 mt-6">
+        {suggestions.map((suggestion) => (
+          <button
+            key={suggestion.label}
+            type="button"
+            onClick={() => setValue(suggestion.query)}
+            disabled={isRunning}
+            className={cn(
+              "px-4 py-2 rounded-full text-sm border transition-all",
+              "border-border/60 text-muted-foreground",
+              "hover:border-primary/50 hover:text-foreground hover:bg-primary/5",
+              "disabled:opacity-50 disabled:cursor-not-allowed"
+            )}
+          >
+            {suggestion.label}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
