@@ -1,0 +1,11 @@
+{
+  "id": "mobile-vendor-license",
+  "name": "Mobile Vendor / Hawker Permission",
+  "authority": "Municipal Corporation / Vendor Committee (varies)",
+  "timelineDays": { "min": 15, "max": 60, "avg": 30 },
+  "feesInr": { "notes": "Varies by city and zones; subject to vending policy." },
+  "documents": ["identity-proof", "address-proof", "photo", "vehicle-details"],
+  "steps": ["Apply as per city vending policy.", "Zone allocation if applicable.", "Receive permission."],
+  "sources": [{ "label": "Hackathon KB seed" }]
+}
+

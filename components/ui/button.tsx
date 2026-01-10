@@ -3,23 +3,26 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-type ButtonVariant = "default" | "secondary" | "outline" | "ghost";
+type ButtonVariant = "default" | "secondary" | "outline" | "ghost" | "destructive";
 type ButtonSize = "sm" | "md" | "lg";
 
 const variantClasses: Record<ButtonVariant, string> = {
   default:
-    "bg-primary text-primary-foreground shadow-sm shadow-primary/15 hover:bg-primary/90 hover:shadow-md hover:shadow-primary/20",
+    "bg-primary text-primary-foreground shadow-md shadow-primary/25 hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/30 active:scale-[0.98] border-2 border-primary",
   secondary:
-    "bg-secondary text-secondary-foreground border border-border hover:bg-secondary/70",
+    "bg-secondary text-secondary-foreground border-2 border-secondary hover:bg-secondary/80 active:scale-[0.98]",
   outline:
-    "border border-border bg-background/60 text-foreground hover:bg-muted/50",
-  ghost: "bg-transparent text-foreground hover:bg-muted/50",
+    "border-2 border-border bg-transparent text-foreground hover:border-primary hover:bg-primary/5 hover:text-primary active:scale-[0.98]",
+  ghost:
+    "bg-transparent text-foreground hover:bg-muted active:scale-[0.98]",
+  destructive:
+    "bg-destructive text-primary-foreground border-2 border-destructive shadow-md shadow-destructive/25 hover:bg-destructive/90 active:scale-[0.98]",
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
-  sm: "h-9 px-3 text-sm rounded-lg",
-  md: "h-10 px-4 text-sm rounded-xl",
-  lg: "h-11 px-5 text-base rounded-xl",
+  sm: "h-9 px-3 text-sm rounded-md gap-1.5",
+  md: "h-10 px-4 text-sm rounded-lg gap-2",
+  lg: "h-12 px-6 text-base rounded-lg gap-2",
 };
 
 export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -36,7 +39,7 @@ export function Button({
   ...props
 }: ButtonProps) {
   const classes = cn(
-    "inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-50",
+    "inline-flex items-center justify-center whitespace-nowrap font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50",
     variantClasses[variant],
     sizeClasses[size],
     className

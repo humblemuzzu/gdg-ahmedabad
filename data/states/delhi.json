@@ -1,0 +1,9 @@
+{
+  "id": "delhi",
+  "name": "Delhi (NCT)",
+  "majorCities": ["Delhi", "New Delhi"],
+  "cityToMunicipality": { "Delhi": "MCD", "New Delhi": "NDMC" },
+  "specialRules": ["Licenses vary by MCD/NDMC jurisdiction."],
+  "sources": [{ "label": "Hackathon KB seed" }]
+}
+

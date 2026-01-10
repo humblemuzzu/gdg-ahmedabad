@@ -1,0 +1,33 @@
+{
+  "id": "maharashtra",
+  "name": "Maharashtra",
+  "majorCities": ["Mumbai", "Pune", "Nagpur", "Nashik"],
+  "cityToMunicipality": {
+    "Mumbai": "BMC",
+    "Pune": "PMC",
+    "Nagpur": "NMC",
+    "Nashik": "NMC (Nashik)"
+  },
+  "licenses": {
+    "shop-establishment": {
+      "localName": "Gumasta License (Shop & Establishment)",
+      "authority": "Labour Commissioner, Maharashtra",
+      "timelineDays": { "min": 15, "max": 30, "avg": 22 },
+      "feesInr": { "base": 1500, "renewal": 500 },
+      "documents": ["pan", "aadhaar", "rent-agreement", "photos"],
+      "onlinePortal": "https://mahakamgar.maharashtra.gov.in"
+    },
+    "health-trade-license": {
+      "localName": "Health Trade License (Mumbai: BMC Health)",
+      "authority": "Municipal Corporation (BMC for Mumbai)",
+      "timelineDays": { "min": 10, "max": 21, "avg": 14 },
+      "feesInr": { "base": 2500, "annual": 2500 }
+    }
+  },
+  "specialRules": [
+    "Fire NOC commonly requires Occupancy Certificate (OC) / building compliance proofs.",
+    "Residential zone may require Land Use Conversion / NOC before certain trade licenses."
+  ],
+  "sources": [{ "label": "Hackathon KB seed" }]
+}
+

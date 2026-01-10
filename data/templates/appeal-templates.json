@@ -1,0 +1,11 @@
+{
+  "appeal": [
+    {
+      "id": "first-appeal-rti",
+      "name": "First appeal under RTI Act (non-response/unsatisfactory reply)",
+      "template": "To,\\nThe First Appellate Authority (FAA),\\n{department_name}, {office_address}\\n\\nSubject: First Appeal under RTI Act, 2005\\n\\nSir/Madam,\\n\\nI had filed an RTI application dated {rti_date} (Ref: {rti_reference}) seeking information regarding {topic}. I have not received any response within the statutory period / received an incomplete reply.\\n\\nGrounds for appeal:\\n1) Failure to provide information within time.\\n2) Information provided is incomplete/incorrect (as applicable).\\n\\nRelief sought:\\n1) Direct the PIO to provide complete information free of cost.\\n2) Take appropriate action as per RTI Act for delay/denial.\\n\\nYours faithfully,\\n{applicant_name}\\n{phone}\\n{email}\\n{date}",
+      "notes": ["Attach copy of RTI application and proof of submission."]
+    }
+  ]
+}
+

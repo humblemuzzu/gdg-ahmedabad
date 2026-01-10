@@ -1,0 +1,11 @@
+{
+  "grievance": [
+    {
+      "id": "cpgrams-delay",
+      "name": "CPGRAMS grievance for undue delay",
+      "template": "Subject: Grievance regarding undue delay in processing {application_type} (Ref: {application_number})\\n\\nRespected Sir/Madam,\\n\\nI submitted an application for {application_type} on {application_date} at {office_name}. The application has been pending for {days_pending} days, which exceeds the expected timeline as per Citizen Charter.\\n\\nI request urgent intervention to:\\n1) Provide the current status and reasons for delay.\\n2) Ensure time-bound disposal of the application.\\n3) Share the escalation officer details for follow-up.\\n\\nDetails:\\n- Applicant: {applicant_name}\\n- Contact: {phone}, {email}\\n- Office: {office_address}\\n\\nThank you.\\n{applicant_name}",
+      "notes": ["Keep it factual; attach acknowledgments/screenshots if possible."]
+    }
+  ]
+}
+

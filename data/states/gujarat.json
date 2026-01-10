@@ -1,0 +1,9 @@
+{
+  "id": "gujarat",
+  "name": "Gujarat",
+  "majorCities": ["Ahmedabad", "Surat", "Vadodara", "Rajkot"],
+  "cityToMunicipality": { "Ahmedabad": "AMC" },
+  "specialRules": ["Municipal trade licenses vary by city corporation."],
+  "sources": [{ "label": "Hackathon KB seed" }]
+}
+

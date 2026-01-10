@@ -1,0 +1,12 @@
+{
+  "id": "iec",
+  "name": "Importer Exporter Code (IEC)",
+  "authority": "Directorate General of Foreign Trade (DGFT)",
+  "onlinePortal": "https://www.dgft.gov.in",
+  "timelineDays": { "min": 3, "max": 10, "avg": 5 },
+  "feesInr": { "base": 500, "notes": "Approximate fee; verify on portal." },
+  "documents": ["pan", "address-proof", "bank-proof", "photo"],
+  "steps": ["Register on DGFT portal.", "Apply for IEC with PAN and bank details.", "Receive IEC."],
+  "sources": [{ "label": "DGFT portal", "url": "https://www.dgft.gov.in" }]
+}
+

@@ -1,0 +1,12 @@
+{
+  "id": "shop-establishment",
+  "name": "Shop & Establishment Registration",
+  "authority": "State Labour Department",
+  "timelineDays": { "min": 7, "max": 30, "avg": 14 },
+  "feesInr": { "base": 1000, "notes": "Varies by state and employees." },
+  "documents": ["pan", "address-proof", "rent-agreement", "photo", "employee-details"],
+  "steps": ["Apply on state labour portal (or local office).", "Upload documents and pay fee.", "Receive registration certificate."],
+  "tips": ["In Maharashtra, this is often referred to as Gumasta."],
+  "sources": [{ "label": "Hackathon KB seed" }]
+}
+

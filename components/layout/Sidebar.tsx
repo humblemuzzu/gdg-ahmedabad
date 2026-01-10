@@ -6,10 +6,10 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const nav = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/process/demo", label: "Process" },
-  { href: "/history", label: "History" },
-  { href: "/settings", label: "Settings" },
+  { href: "/dashboard", label: "Dashboard", shortcut: "D" },
+  { href: "/process/demo", label: "Process", shortcut: "P" },
+  { href: "/history", label: "History", shortcut: "H" },
+  { href: "/settings", label: "Settings", shortcut: "S" },
 ];
 
 export function Sidebar({
@@ -23,53 +23,78 @@ export function Sidebar({
 
   return (
     <>
+      {/* Backdrop */}
       <div
         className={cn(
-          "fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity md:hidden",
+          "fixed inset-0 z-40 bg-foreground/60 backdrop-blur-sm transition-opacity duration-300 md:hidden",
           open ? "opacity-100" : "pointer-events-none opacity-0"
         )}
         onClick={onClose}
         aria-hidden="true"
       />
+
+      {/* Sidebar */}
       <aside
         className={cn(
-          "fixed left-0 top-0 z-50 h-full w-[280px] border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-transform md:sticky md:translate-x-0",
+          "fixed left-0 top-0 z-50 h-screen w-[260px] border-r-2 border-sidebar-border bg-sidebar transition-transform duration-300 ease-out",
           open ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         )}
         aria-label="Sidebar"
       >
         <div className="flex h-full flex-col">
-          <div className="flex items-center justify-between px-5 py-5">
+          {/* Header */}
+          <div className="border-b-2 border-sidebar-border px-5 py-5">
             <Link href="/" className="group flex items-center gap-3">
-              <div className="grid h-10 w-10 place-items-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/15">
-                <span className="text-sm font-semibold tracking-tight">BB</span>
+              {/* Bold monogram logo */}
+              <div className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-lg bg-primary">
+                <span className="font-display text-lg font-bold text-primary-foreground">
+                  BB
+                </span>
+                {/* Decorative corner accent */}
+                <div className="absolute -bottom-1 -right-1 h-3 w-3 rounded-tl bg-accent" />
               </div>
               <div className="leading-tight">
-                <p className="text-sm font-semibold text-foreground">Bureaucracy Breaker</p>
-                <p className="text-xs text-muted-foreground">Process GPS</p>
+                <p className="font-display text-base font-semibold tracking-tight text-sidebar-foreground">
+                  Bureaucracy
+                </p>
+                <p className="font-display text-base font-semibold tracking-tight text-primary">
+                  Breaker
+                </p>
               </div>
             </Link>
+
+            {/* Mobile close */}
             <button
               type="button"
-              className="md:hidden rounded-xl border border-border bg-background/50 px-3 py-2 text-xs hover:bg-muted/50"
+              className="absolute right-4 top-5 rounded-md border-2 border-border bg-background px-2.5 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:border-primary hover:text-foreground md:hidden"
               onClick={onClose}
               aria-label="Close sidebar"
             >
-              Close
+              ESC
             </button>
           </div>
 
-          <div className="px-3 pb-4">
-            <div className="rounded-2xl border border-sidebar-border bg-sidebar-accent px-4 py-3">
-              <p className="text-xs font-medium text-sidebar-foreground">Quick start</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Create a new plan, then track documents and risks.
-              </p>
-            </div>
+          {/* Quick action banner */}
+          <div className="border-b border-sidebar-border px-4 py-4">
+            <Link
+              href="/dashboard#new"
+              className="group flex items-center gap-3 rounded-lg border-2 border-dashed border-sidebar-border bg-sidebar-accent/50 px-4 py-3 transition-all hover:border-primary hover:bg-primary/5"
+            >
+              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-sidebar-foreground">New Plan</p>
+                <p className="text-xs text-sidebar-muted">Start fresh</p>
+              </div>
+            </Link>
           </div>
 
-          <nav className="flex-1 px-3">
-            <p className="px-2 pb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          {/* Navigation */}
+          <nav className="flex-1 px-3 py-4">
+            <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-widest text-sidebar-muted">
               Workspace
             </p>
             <div className="space-y-1">
@@ -87,32 +112,48 @@ export function Sidebar({
                     href={item.href}
                     onClick={onClose}
                     className={cn(
-                      "flex items-center justify-between rounded-2xl px-3 py-2 text-sm transition-colors",
+                      "group flex items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
                       active
-                        ? "bg-primary/10 text-foreground ring-1 ring-primary/15"
-                        : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-sidebar-foreground hover:bg-sidebar-accent"
                     )}
                   >
-                    <span className="font-medium">{item.label}</span>
-                    <span
+                    <span>{item.label}</span>
+                    <kbd
                       className={cn(
-                        "h-1.5 w-1.5 rounded-full",
-                        active ? "bg-primary" : "bg-border"
+                        "hidden rounded px-1.5 py-0.5 font-mono text-[10px] font-medium md:inline-block",
+                        active
+                          ? "bg-primary-foreground/20 text-primary-foreground"
+                          : "bg-sidebar-accent text-sidebar-muted group-hover:bg-sidebar-border"
                       )}
-                      aria-hidden="true"
-                    />
+                    >
+                      {item.shortcut}
+                    </kbd>
                   </Link>
                 );
               })}
             </div>
           </nav>
 
-          <div className="px-5 py-5">
-            <div className="rounded-2xl border border-sidebar-border bg-background/30 px-4 py-3">
-              <p className="text-xs font-semibold">UI shell</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Core orchestration will be wired next. This layout is ready.
-              </p>
+          {/* Footer status */}
+          <div className="border-t-2 border-sidebar-border px-4 py-4">
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <div className="h-2 w-2 rounded-full bg-success" />
+                <div className="absolute inset-0 h-2 w-2 animate-ping rounded-full bg-success opacity-75" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-sidebar-foreground">System Online</p>
+                <p className="text-[11px] text-sidebar-muted truncate">All agents operational</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Version tag */}
+          <div className="border-t border-sidebar-border px-4 py-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-medium text-sidebar-muted">v0.1 Preview</span>
+              <span className="rounded bg-accent/20 px-1.5 py-0.5 text-[10px] font-bold text-accent">BETA</span>
             </div>
           </div>
         </div>

@@ -1,15 +1,16 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-type BadgeVariant = "default" | "secondary" | "outline" | "success" | "warning" | "destructive";
+type BadgeVariant = "default" | "secondary" | "outline" | "success" | "warning" | "destructive" | "info";
 
 const variantClasses: Record<BadgeVariant, string> = {
-  default: "bg-primary/10 text-primary border border-primary/15",
-  secondary: "bg-secondary text-secondary-foreground border border-border",
-  outline: "bg-transparent text-foreground border border-border",
-  success: "bg-success/10 text-success border border-success/20",
-  warning: "bg-warning/10 text-warning border border-warning/20",
-  destructive: "bg-destructive/10 text-destructive border border-destructive/20",
+  default: "bg-primary text-primary-foreground border-2 border-primary",
+  secondary: "bg-secondary text-secondary-foreground border-2 border-secondary",
+  outline: "bg-transparent text-foreground border-2 border-border",
+  success: "bg-success/15 text-success border-2 border-success/30",
+  warning: "bg-warning/15 text-warning border-2 border-warning/30",
+  destructive: "bg-destructive/15 text-destructive border-2 border-destructive/30",
+  info: "bg-info/15 text-info border-2 border-info/30",
 };
 
 export function Badge({
@@ -20,7 +21,7 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium",
+        "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-bold uppercase tracking-wide",
         variantClasses[variant],
         className
       )}

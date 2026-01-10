@@ -1,0 +1,16 @@
+{
+  "id": "karnataka",
+  "name": "Karnataka",
+  "majorCities": ["Bengaluru", "Mysuru", "Mangaluru", "Hubballi"],
+  "cityToMunicipality": { "Bengaluru": "BBMP" },
+  "licenses": {
+    "shop-establishment": {
+      "localName": "Shop & Establishment Registration",
+      "authority": "Department of Labour, Karnataka",
+      "timelineDays": { "min": 7, "max": 14, "avg": 10 }
+    }
+  },
+  "specialRules": ["Local trade licenses vary by ULB (BBMP/City Corporation)."],
+  "sources": [{ "label": "Hackathon KB seed" }]
+}
+

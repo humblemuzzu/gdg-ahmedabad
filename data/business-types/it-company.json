@@ -1,0 +1,17 @@
+{
+  "id": "it-company",
+  "name": "IT / Software Services Company",
+  "subTypes": [
+    { "id": "proprietorship", "name": "Sole Proprietorship" },
+    { "id": "partnership", "name": "Partnership" },
+    { "id": "llp", "name": "Limited Liability Partnership (LLP)" },
+    { "id": "pvt-ltd", "name": "Private Limited Company" }
+  ],
+  "defaultLicenses": ["gst", "shop-establishment"],
+  "scaleThresholds": {
+    "employees": { "epfo": 20, "esic": 10 },
+    "turnover": { "gst": 2000000 }
+  },
+  "sources": [{ "label": "Hackathon KB seed" }]
+}
+

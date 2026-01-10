@@ -1,0 +1,18 @@
+{
+  "departmentPerformance": [
+    {
+      "id": "fire-services",
+      "name": "Fire Services Department",
+      "avgDelayMultiplier": 1.6,
+      "complaintRate": 0.25,
+      "notes": ["Delays often relate to building compliance and inspection scheduling."]
+    },
+    {
+      "id": "municipal-licenses",
+      "name": "Municipal Licensing",
+      "avgDelayMultiplier": 1.3,
+      "complaintRate": 0.18
+    }
+  ]
+}
+

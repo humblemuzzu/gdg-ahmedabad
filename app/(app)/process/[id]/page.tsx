@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { AgentActivityStream } from "@/components/agents/AgentActivityStream";
 import { AgentDebateViewer } from "@/components/agents/AgentDebateViewer";
@@ -9,13 +11,15 @@ import { ProcessTimeline } from "@/components/process/ProcessTimeline";
 import { JourneyMap } from "@/components/visualization/JourneyMap";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAnalysisContext } from "@/lib/context/analysis-context";
 
-export default async function ProcessPage({
+export default function ProcessPage({
   params,
 }: {
   params: { id: string };
 }) {
   const { id } = params;
+  const { steps, costs, risks, documents, activities, isComplete, query } = useAnalysisContext();
 
   return (
     <div className="space-y-6">
@@ -24,9 +28,10 @@ export default async function ProcessPage({
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Process</h1>
             <Badge variant="outline">#{id}</Badge>
+            {isComplete && <Badge variant="success">Complete</Badge>}
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
-            Detailed view with timeline, risks, costs, and documents.
+            {query || "Detailed view with timeline, risks, costs, and documents."}
           </p>
         </div>
         <Link href="/dashboard" className="text-sm font-medium text-primary hover:underline">
@@ -36,20 +41,20 @@ export default async function ProcessPage({
 
       <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
         <div className="space-y-6">
-          <ProcessTimeline />
+          <ProcessTimeline steps={steps} />
           <div className="grid gap-6 xl:grid-cols-2">
             <ProcessDependencyGraph />
             <JourneyMap />
           </div>
           <div className="grid gap-6 xl:grid-cols-2">
-            <ProcessCostBreakdown />
-            <ProcessRiskAnalysis />
+            <ProcessCostBreakdown costs={costs} />
+            <ProcessRiskAnalysis risks={risks} />
           </div>
         </div>
         <div className="space-y-6">
-          <AgentActivityStream />
+          <AgentActivityStream events={activities} />
           <AgentDebateViewer />
-          <DocumentChecklist />
+          <DocumentChecklist documents={documents} />
           <Card>
             <CardHeader>
               <CardTitle>Notes</CardTitle>

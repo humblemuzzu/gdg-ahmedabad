@@ -1,0 +1,18 @@
+{
+  "id": "fire-noc",
+  "name": "Fire Safety NOC",
+  "authority": "State/Local Fire Services Department",
+  "timelineDays": { "min": 15, "max": 45, "avg": 28 },
+  "feesInr": { "base": 3000, "notes": "Varies by city, area, occupancy and inspection fees." },
+  "documents": ["building-occupancy-certificate", "fire-safety-plan", "floor-plan", "site-plan", "owner-consent"],
+  "prerequisites": ["premises-proof"],
+  "steps": [
+    "Prepare fire safety plan and get drawings certified by architect/engineer.",
+    "Apply to local fire department portal/office with documents and fees.",
+    "Inspection and compliance rectification if required.",
+    "Receive Fire NOC."
+  ],
+  "tips": ["Occupancy Certificate/Building compliance issues are a common rejection reason."],
+  "sources": [{ "label": "Hackathon KB seed" }]
+}
+

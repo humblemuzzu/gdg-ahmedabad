@@ -1,0 +1,34 @@
+{
+  "id": "restaurant",
+  "name": "Restaurant / Food Service",
+  "subTypes": [
+    { "id": "dine-in", "name": "Dine-in Restaurant" },
+    { "id": "cloud-kitchen", "name": "Cloud Kitchen" },
+    { "id": "cafe", "name": "Cafe (No Cooking)" },
+    { "id": "qsr", "name": "Quick Service Restaurant" },
+    { "id": "bar-restaurant", "name": "Bar + Restaurant" },
+    { "id": "food-truck", "name": "Food Truck" }
+  ],
+  "defaultLicenses": [
+    "fssai",
+    "gst",
+    "fire-noc",
+    "shop-establishment",
+    "trade-license",
+    "health-trade-license",
+    "signage-license"
+  ],
+  "conditionalLicenses": {
+    "bar-restaurant": ["liquor-license"],
+    "food-truck": ["mobile-vendor-license"]
+  },
+  "scaleThresholds": {
+    "employees": { "epfo": 20, "esic": 10 },
+    "turnover": { "gst": 4000000 },
+    "areaSqFt": { "fire-noc-mandatory": 500 }
+  },
+  "sources": [
+    { "label": "Hackathon KB seed", "note": "Seeded for demo; expand per state/city." }
+  ]
+}
+

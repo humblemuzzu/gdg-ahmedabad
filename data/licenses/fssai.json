@@ -1,0 +1,22 @@
+{
+  "id": "fssai",
+  "name": "FSSAI Food License / Registration",
+  "authority": "Food Safety and Standards Authority of India (FSSAI)",
+  "onlinePortal": "https://foscos.fssai.gov.in",
+  "timelineDays": { "min": 7, "max": 30, "avg": 14 },
+  "feesInr": { "base": 5000, "annual": 5000, "notes": "Varies by category (Basic/State/Central) and turnover." },
+  "documents": ["pan", "aadhaar", "photo", "address-proof", "layout-plan", "water-test-report", "noc-landlord"],
+  "prerequisites": ["entity-proof", "premises-proof"],
+  "steps": [
+    "Create account on FoSCoS portal and select license category.",
+    "Fill application, upload documents, pay fee.",
+    "Track application; respond to queries; schedule inspection if required.",
+    "Receive license certificate; display at premises."
+  ],
+  "tips": [
+    "Category depends on turnover and nature of business (Basic/State/Central).",
+    "Ensure name/address matches proofs to avoid clarifications."
+  ],
+  "sources": [{ "label": "FoSCoS portal", "url": "https://foscos.fssai.gov.in" }]
+}
+

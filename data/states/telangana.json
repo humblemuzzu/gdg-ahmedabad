@@ -1,0 +1,9 @@
+{
+  "id": "telangana",
+  "name": "Telangana",
+  "majorCities": ["Hyderabad", "Warangal", "Nizamabad"],
+  "cityToMunicipality": { "Hyderabad": "GHMC" },
+  "specialRules": ["Some permissions can be coordinated via TS-iPASS depending on category."],
+  "sources": [{ "label": "Hackathon KB seed" }]
+}
+

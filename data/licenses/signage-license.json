@@ -1,0 +1,11 @@
+{
+  "id": "signage-license",
+  "name": "Signage / Advertisement Permission",
+  "authority": "Municipal Corporation / Local Body",
+  "timelineDays": { "min": 7, "max": 21, "avg": 10 },
+  "feesInr": { "base": 5000, "annual": 5000, "notes": "Often based on size/location." },
+  "documents": ["signage-design", "premises-proof", "noc-landlord"],
+  "steps": ["Submit signage design and dimensions.", "Pay fee and obtain permission.", "Install signage per rules."],
+  "sources": [{ "label": "Hackathon KB seed" }]
+}
+

@@ -1,0 +1,11 @@
+{
+  "rti": [
+    {
+      "id": "rti-status-delay",
+      "name": "RTI for delayed application status",
+      "template": "To,\\nThe Public Information Officer (PIO),\\n{department_name}, {office_address}\\n\\nSubject: Request for information under RTI Act, 2005 regarding status of my application\\n\\nSir/Madam,\\n\\nI, {applicant_name}, resident of {applicant_address}, hereby seek the following information under the Right to Information Act, 2005:\\n\\n1) Current status of my application for {application_type} submitted on {application_date} (Application/Reference No: {application_number}).\\n2) Name and designation of the officer currently handling my file.\\n3) Certified copy of the noting sheet and movement register entries related to my application from {application_date} till date.\\n4) If the application has exceeded the prescribed timeline, please provide reasons for delay and the action taken against responsible officials as per Citizen Charter.\\n5) Expected date by which the application will be disposed.\\n\\nI am enclosing the RTI fee as applicable. Please provide the information within 30 days.\\n\\nYours faithfully,\\n{applicant_name}\\n{phone}\\n{email}\\n{date}",
+      "notes": ["Replace placeholders with details; attach proof of submission if available."]
+    }
+  ]
+}
+

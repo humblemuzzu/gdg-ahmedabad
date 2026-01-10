@@ -1,0 +1,12 @@
+{
+  "id": "export-business",
+  "name": "Export / Import (Small Business)",
+  "subTypes": [
+    { "id": "handicrafts", "name": "Handicrafts / Artisan Goods" },
+    { "id": "textiles", "name": "Textiles / Garments" },
+    { "id": "food", "name": "Food Products" }
+  ],
+  "defaultLicenses": ["gst", "iec"],
+  "sources": [{ "label": "Hackathon KB seed" }]
+}
+

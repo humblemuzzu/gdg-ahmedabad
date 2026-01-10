@@ -3,6 +3,19 @@ import { AgentGrid } from "@/components/agents/AgentGrid";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import type { Agent } from "@/types";
+
+// Sample agents for landing page preview
+const previewAgents: Agent[] = [
+  { id: "intent", name: "Intent Decoder", tier: "intake", status: "done", summary: "Business setup detected" },
+  { id: "location", name: "Location Intel", tier: "intake", status: "done", summary: "Ahmedabad, Gujarat" },
+  { id: "classifier", name: "Business Classifier", tier: "intake", status: "done", summary: "Cafe / QSR" },
+  { id: "librarian", name: "Regulation Librarian", tier: "research", status: "idle" },
+  { id: "risk", name: "Risk Assessor", tier: "intelligence", status: "idle" },
+  { id: "timeline", name: "Timeline Architect", tier: "strategy", status: "idle" },
+  { id: "cost", name: "Cost Calculator", tier: "strategy", status: "idle" },
+  { id: "compiler", name: "Final Compiler", tier: "intelligence", status: "idle" },
+];
 
 export default function Home() {
   return (
@@ -50,7 +63,7 @@ export default function Home() {
             <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1 text-xs text-muted-foreground shadow-sm">
                 <span className="h-2 w-2 rounded-full bg-success ring-2 ring-success/15" />
-                UI-first build · Core agents wiring next
+                25 AI agents ready · Powered by Gemini
               </div>
 
               <h1 className="mt-5 text-balance text-4xl font-semibold tracking-tight md:text-6xl">
@@ -104,13 +117,13 @@ export default function Home() {
                   <div>
                     <p className="text-sm font-medium">Agent status</p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Sample activity preview (UI only — backend not connected yet)
+                      25 specialized agents work together on your query
                     </p>
                   </div>
-                  <Badge variant="outline">Preview</Badge>
+                  <Badge variant="success">Connected</Badge>
                 </div>
                 <div className="mt-4">
-                  <AgentGrid compact />
+                  <AgentGrid agents={previewAgents} compact />
                 </div>
               </Card>
 

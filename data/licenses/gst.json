@@ -1,0 +1,17 @@
+{
+  "id": "gst",
+  "name": "GST Registration",
+  "authority": "Goods and Services Tax Network (GSTN)",
+  "onlinePortal": "https://www.gst.gov.in",
+  "timelineDays": { "min": 3, "max": 10, "avg": 5 },
+  "feesInr": { "base": 0, "notes": "No official fee; practical cost may include CA assistance." },
+  "documents": ["pan", "aadhaar", "address-proof", "bank-proof", "photo"],
+  "steps": [
+    "Determine threshold applicability and select registration type.",
+    "Submit application on GST portal with OTP-based verification.",
+    "Respond to officer queries if raised; receive GSTIN."
+  ],
+  "tips": ["Keep bank details ready; ensure PAN and name consistency."],
+  "sources": [{ "label": "GST portal", "url": "https://www.gst.gov.in" }]
+}
+

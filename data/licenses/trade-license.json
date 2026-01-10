@@ -1,0 +1,11 @@
+{
+  "id": "trade-license",
+  "name": "Municipal Trade License",
+  "authority": "Municipal Corporation / Local Body",
+  "timelineDays": { "min": 10, "max": 30, "avg": 18 },
+  "feesInr": { "base": 2000, "annual": 2000, "notes": "Varies by city, category, and size." },
+  "documents": ["premises-proof", "identity-proof", "layout-plan", "noc-landlord"],
+  "steps": ["Determine local body (municipality) jurisdiction.", "Apply online/offline with documents.", "Inspection if applicable; receive license."],
+  "sources": [{ "label": "Hackathon KB seed" }]
+}
+

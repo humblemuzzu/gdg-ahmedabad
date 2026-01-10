@@ -1,0 +1,12 @@
+{
+  "id": "liquor-license",
+  "name": "Liquor License (On-premise)",
+  "authority": "State Excise Department",
+  "timelineDays": { "min": 30, "max": 120, "avg": 60 },
+  "feesInr": { "notes": "Highly state-specific; can be expensive and quota-limited." },
+  "documents": ["company-docs", "premises-proof", "police-noc", "fire-noc", "fssai"],
+  "prerequisites": ["fire-noc", "fssai", "trade-license"],
+  "steps": ["Check eligibility and category.", "Apply to excise dept with NOCs.", "Inspection and approval; pay fee; obtain license."],
+  "sources": [{ "label": "Hackathon KB seed" }]
+}
+

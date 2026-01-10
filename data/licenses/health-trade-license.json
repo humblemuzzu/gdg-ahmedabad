@@ -1,0 +1,11 @@
+{
+  "id": "health-trade-license",
+  "name": "Health Trade / Eating House License",
+  "authority": "Municipal Health Department / Police (varies by city)",
+  "timelineDays": { "min": 10, "max": 30, "avg": 15 },
+  "feesInr": { "base": 2500, "annual": 2500 },
+  "documents": ["premises-proof", "identity-proof", "kitchen-layout", "water-source-proof", "waste-disposal-plan"],
+  "steps": ["Apply with premises and hygiene documents.", "Inspection and compliance.", "Receive license."],
+  "sources": [{ "label": "Hackathon KB seed" }]
+}
+

@@ -1,0 +1,10 @@
+{
+  "processingTimes": {
+    "fssai": { "min": 7, "max": 30, "avg": 14 },
+    "gst": { "min": 3, "max": 10, "avg": 5 },
+    "fire-noc": { "min": 15, "max": 45, "avg": 28 },
+    "shop-establishment": { "min": 7, "max": 30, "avg": 14 },
+    "trade-license": { "min": 10, "max": 30, "avg": 18 }
+  }
+}
+
