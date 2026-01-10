@@ -288,6 +288,7 @@ export default function HistoryDetailPage() {
           costs={costs}
           risks={risks}
           documents={documents}
+          caseId={caseId}
         />
       )}
 

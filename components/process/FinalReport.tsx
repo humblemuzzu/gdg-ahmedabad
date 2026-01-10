@@ -4,8 +4,10 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { ProcessResult, ProcessStep, ProcessCost, ProcessRisk, ProcessDocument, GeneratedDraft, TimelinePlanItem, DependencyGraph } from "@/types";
+import type { ProcessResult, ProcessStep, ProcessCost, ProcessRisk, ProcessDocument, GeneratedDraft, TimelinePlanItem, DependencyGraph, ProcessStepStatus } from "@/types";
 import { ProcessDependencyGraph } from "./ProcessDependencyGraph";
+import { RemindersPanel } from "./RemindersPanel";
+import { getEstimatedCosts, getRisksWithDefaults, calculateOfficialCost, DEFAULT_RISKS } from "@/lib/constants/defaults";
 
 interface FinalReportProps {
   result: ProcessResult | null;
@@ -15,6 +17,7 @@ interface FinalReportProps {
   costs: ProcessCost[];
   risks: ProcessRisk[];
   documents: ProcessDocument[];
+  caseId?: string;
 }
 
 interface ExpertPerspective {
@@ -64,6 +67,14 @@ interface VisitPlanData {
 
 type TabId = "overview" | "timeline" | "costs" | "documents" | "risks" | "experts" | "drafts" | "comparison" | "whatif" | "visits" | "dependencies" | "reminders";
 
+const statusOrder: ProcessStepStatus[] = ["pending", "in_progress", "done", "blocked"];
+const statusStyles: Record<ProcessStepStatus, { bg: string; text: string; label: string }> = {
+  pending: { bg: "bg-muted", text: "text-muted-foreground", label: "Pending" },
+  in_progress: { bg: "bg-info/10", text: "text-info", label: "In Progress" },
+  done: { bg: "bg-success/10", text: "text-success", label: "Done" },
+  blocked: { bg: "bg-destructive/10", text: "text-destructive", label: "Blocked" },
+};
+
 export function FinalReport({ 
   result, 
   isComplete, 
@@ -71,10 +82,35 @@ export function FinalReport({
   steps,
   costs,
   risks,
-  documents 
+  documents,
+  caseId: propCaseId
 }: FinalReportProps) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [copiedDraft, setCopiedDraft] = useState<string | null>(null);
+  // Local state for step status tracking
+  const [stepStatuses, setStepStatuses] = useState<Map<string, ProcessStepStatus>>(new Map());
+
+  const getStepStatus = (step: ProcessStep): ProcessStepStatus => {
+    return stepStatuses.get(step.id) || step.status;
+  };
+
+  const cycleStepStatus = (step: ProcessStep) => {
+    const currentStatus = getStepStatus(step);
+    const currentIndex = statusOrder.indexOf(currentStatus);
+    const nextIndex = (currentIndex + 1) % statusOrder.length;
+    const newStatus = statusOrder[nextIndex];
+    setStepStatuses(prev => new Map(prev).set(step.id, newStatus));
+  };
+
+  const markAllStepsDone = () => {
+    const newMap = new Map<string, ProcessStepStatus>();
+    steps.forEach(step => newMap.set(step.id, "done"));
+    setStepStatuses(newMap);
+  };
+
+  const resetAllSteps = () => {
+    setStepStatuses(new Map());
+  };
 
   if (!isComplete || !result) {
     return null;
@@ -112,20 +148,41 @@ export function FinalReport({
   
   // FIX: Normalize cost access - handle demo format (summary.officialTotal) and full format (officialFeesInr)
   const rawCosts = r.costs || {};
-  const totalCost = Number(
+  let totalCost = Number(
     rawCosts?.officialFeesInr || 
     rawCosts?.summary?.officialTotal || 
     rawCosts?.totalOfficialFees || 
     0
   );
   const practicalCostsRange = rawCosts?.practicalCostsInrRange || rawCosts?.summary?.practicalRange;
-  const practicalMin = Number(practicalCostsRange?.min || rawCosts?.practicalMin || 0);
-  const practicalMax = Number(practicalCostsRange?.max || rawCosts?.practicalMax || 0);
+  let practicalMin = Number(practicalCostsRange?.min || rawCosts?.practicalMin || 0);
+  let practicalMax = Number(practicalCostsRange?.max || rawCosts?.practicalMax || 0);
+  
+  // FIX: Fallback cost estimation when AI returns 0 or incomplete data
+  if (totalCost === 0 || (practicalMin === 0 && practicalMax === 0)) {
+    // Try to calculate from licenses first
+    const calculatedFromLicenses = calculateOfficialCost(result.licenses);
+    if (calculatedFromLicenses > 0) {
+      if (totalCost === 0) totalCost = calculatedFromLicenses;
+    }
+    
+    // If still 0, use business type estimate
+    if (totalCost === 0 || (practicalMin === 0 && practicalMax === 0)) {
+      const businessTypeId = result.intent?.businessTypeId || result.business?.name || "";
+      const estimated = getEstimatedCosts(businessTypeId);
+      if (totalCost === 0) totalCost = estimated.official;
+      if (practicalMin === 0) practicalMin = estimated.practicalMin;
+      if (practicalMax === 0) practicalMax = estimated.practicalMax;
+    }
+  }
   
   // Get risk score - handle both overallScore (demo) and riskScore0to10 (full)
   const riskScore = result.risks?.riskScore0to10 || r.risks?.overallScore || r.risks?.riskScore || 0;
-  const highRisks = risks.filter(risk => risk.severity === "high").length;
-  const mediumRisks = risks.filter(risk => risk.severity === "medium").length;
+  
+  // FIX: Use default risks if no specific risks identified
+  const effectiveRisks = getRisksWithDefaults(risks);
+  const highRisks = effectiveRisks.filter(risk => risk.severity === "high").length;
+  const mediumRisks = effectiveRisks.filter(risk => risk.severity === "medium").length;
 
   // Get expert advice if available
   const expertAdvice = result.outputs?.expertAdvice as { 
@@ -186,7 +243,7 @@ export function FinalReport({
     { id: "timeline", label: "Timeline", icon: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z", count: steps.length },
     { id: "costs", label: "Costs", icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z", count: costs.length },
     { id: "documents", label: "Documents", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z", count: documents.length },
-    { id: "risks", label: "Risks", icon: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z", count: risks.length },
+    { id: "risks", label: "Risks", icon: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z", count: effectiveRisks.length },
     { id: "experts", label: "Experts", icon: "M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z", count: perspectives.length },
     // NEW TABS for previously hidden agent outputs
     { id: "drafts", label: "Drafts", icon: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z", count: drafts.length, highlight: drafts.length > 0 },
@@ -239,9 +296,9 @@ export function FinalReport({
           </div>
           <div className="rounded-lg border border-border bg-background/50 p-3 text-center">
             <p className="text-3xl font-bold text-success">
-              {totalCost > 0 ? `₹${(totalCost / 1000).toFixed(0)}K` : "TBD"}
+              {totalCost > 0 ? `₹${(totalCost / 1000).toFixed(0)}K` : "₹15K"}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">Official Fees</p>
+            <p className="text-xs text-muted-foreground mt-1">Official Fees {totalCost > 0 && rawCosts?.officialFeesInr === undefined && "(Est.)"}</p>
           </div>
           <div className="rounded-lg border border-border bg-background/50 p-3 text-center">
             <p className={`text-3xl font-bold ${riskScore > 6 ? "text-destructive" : riskScore > 3 ? "text-warning" : "text-success"}`}>
@@ -395,58 +452,82 @@ export function FinalReport({
                     <p className="text-sm text-muted-foreground">
                       Estimated total: {totalDaysMin === totalDaysMax ? `${totalDaysMin} days` : `${totalDaysMin}-${totalDaysMax} days`}
                     </p>
+                    <p className="text-xs text-muted-foreground mt-1">Click status badges to update progress</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={resetAllSteps}>
+                      Reset
+                    </Button>
+                    <Button variant="default" size="sm" onClick={markAllStepsDone}>
+                      Mark All Done
+                    </Button>
                   </div>
                 </div>
                 <div className="space-y-3">
-                  {steps.map((step, idx) => (
-                    <div key={step.id} className="flex gap-4">
-                      <div className="flex flex-col items-center">
-                        <div className={`flex h-8 w-8 items-center justify-center rounded-full border-2 ${
-                          step.status === "done" ? "border-success bg-success/10 text-success" :
-                          step.status === "in_progress" ? "border-primary bg-primary/10 text-primary" :
-                          "border-border bg-muted text-muted-foreground"
-                        }`}>
-                          {step.status === "done" ? (
-                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                            </svg>
-                          ) : (
-                            <span className="text-sm font-medium">{idx + 1}</span>
-                          )}
-                        </div>
-                        {idx < steps.length - 1 && (
-                          <div className={`w-0.5 h-full min-h-[40px] ${
-                            step.status === "done" ? "bg-success" : "bg-border"
-                          }`} />
-                        )}
-                      </div>
-                      <div className="flex-1 pb-4">
-                        <div className="rounded-lg border border-border bg-card p-4">
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <p className="font-medium">{step.title}</p>
-                              <p className="text-sm text-muted-foreground mt-1">
-                                {step.owner} - {step.eta}
-                              </p>
-                            </div>
-                            <Badge variant={
-                              step.status === "done" ? "success" :
-                              step.status === "in_progress" ? "info" :
-                              step.status === "blocked" ? "destructive" :
-                              "outline"
-                            } className="flex-shrink-0">
-                              {step.status === "in_progress" ? "In Progress" : step.status}
-                            </Badge>
+                  {steps.map((step, idx) => {
+                    const currentStatus = getStepStatus(step);
+                    const style = statusStyles[currentStatus];
+                    
+                    return (
+                      <div key={step.id} className="flex gap-4">
+                        <div className="flex flex-col items-center">
+                          <div className={`flex h-8 w-8 items-center justify-center rounded-full border-2 ${
+                            currentStatus === "done" ? "border-success bg-success/10 text-success" :
+                            currentStatus === "in_progress" ? "border-primary bg-primary/10 text-primary" :
+                            currentStatus === "blocked" ? "border-destructive bg-destructive/10 text-destructive" :
+                            "border-border bg-muted text-muted-foreground"
+                          }`}>
+                            {currentStatus === "done" ? (
+                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            ) : currentStatus === "blocked" ? (
+                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            ) : (
+                              <span className="text-sm font-medium">{idx + 1}</span>
+                            )}
                           </div>
-                          {step.notes && (
-                            <p className="text-sm text-muted-foreground mt-2 border-t border-border pt-2">
-                              {step.notes}
-                            </p>
+                          {idx < steps.length - 1 && (
+                            <div className={`w-0.5 h-full min-h-[40px] ${
+                              currentStatus === "done" ? "bg-success" : "bg-border"
+                            }`} />
                           )}
                         </div>
+                        <div className="flex-1 pb-4">
+                          <div className="rounded-lg border border-border bg-card p-4 hover:border-primary/30 transition-colors">
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <p className="font-medium">{step.title}</p>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  {step.owner} - {step.eta}
+                                </p>
+                              </div>
+                              {/* Clickable Status Badge */}
+                              <button
+                                onClick={() => cycleStepStatus(step)}
+                                className="flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                                title="Click to change status"
+                              >
+                                <Badge 
+                                  variant="outline" 
+                                  className={`${style.bg} ${style.text} border-transparent px-3 py-1 hover:ring-2 hover:ring-primary/30`}
+                                >
+                                  {style.label}
+                                </Badge>
+                              </button>
+                            </div>
+                            {step.notes && (
+                              <p className="text-sm text-muted-foreground mt-2 border-t border-border pt-2">
+                                {step.notes}
+                              </p>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </>
             ) : (
@@ -466,18 +547,25 @@ export function FinalReport({
             {/* Summary Cards */}
             <div className="grid gap-4 md:grid-cols-2">
               <div className="rounded-lg border-2 border-success/30 bg-success/5 p-4">
-                <p className="text-sm text-muted-foreground">Official Government Fees</p>
+                <p className="text-sm text-muted-foreground">
+                  Official Government Fees
+                  {totalCost > 0 && rawCosts?.officialFeesInr === undefined && (
+                    <Badge variant="outline" className="ml-2 text-xs">Estimated</Badge>
+                  )}
+                </p>
                 <p className="text-3xl font-bold text-success mt-1">
-                  {totalCost > 0 ? `₹${totalCost.toLocaleString("en-IN")}` : "To be determined"}
+                  ₹{totalCost.toLocaleString("en-IN")}
                 </p>
               </div>
               <div className="rounded-lg border-2 border-warning/30 bg-warning/5 p-4">
-                <p className="text-sm text-muted-foreground">Practical Costs (Including consultants, travel)</p>
+                <p className="text-sm text-muted-foreground">
+                  Practical Costs (Including consultants, travel)
+                  {(practicalMin > 0 || practicalMax > 0) && !rawCosts?.practicalCostsInrRange && (
+                    <Badge variant="outline" className="ml-2 text-xs">Estimated</Badge>
+                  )}
+                </p>
                 <p className="text-3xl font-bold text-warning mt-1">
-                  {practicalMin > 0 || practicalMax > 0 
-                    ? `₹${practicalMin.toLocaleString("en-IN")} - ₹${practicalMax.toLocaleString("en-IN")}`
-                    : "To be determined"
-                  }
+                  ₹{practicalMin.toLocaleString("en-IN")} - ₹{practicalMax.toLocaleString("en-IN")}
                 </p>
               </div>
             </div>
@@ -585,58 +673,59 @@ export function FinalReport({
               </div>
               <div className="rounded-lg border-2 border-border bg-card p-4">
                 <p className="text-sm text-muted-foreground">Low Risk</p>
-                <p className="text-3xl font-bold text-muted-foreground">{risks.filter(r => r.severity === "low").length}</p>
+                <p className="text-3xl font-bold text-muted-foreground">{effectiveRisks.filter(r => r.severity === "low").length}</p>
               </div>
             </div>
 
-            {/* Risk List */}
-            {risks.length > 0 ? (
-              <div className="space-y-3">
-                {risks.map((risk) => (
-                  <div key={risk.id} className={`rounded-lg border-2 p-4 ${
-                    risk.severity === "high" ? "border-destructive/30 bg-destructive/5" :
-                    risk.severity === "medium" ? "border-warning/30 bg-warning/5" :
-                    "border-border bg-card"
-                  }`}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-3">
-                        <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg ${
-                          risk.severity === "high" ? "bg-destructive text-destructive-foreground" :
-                          risk.severity === "medium" ? "bg-warning text-warning-foreground" :
-                          "bg-muted text-muted-foreground"
-                        }`}>
-                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <p className="font-medium">{risk.title}</p>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            <span className="font-medium">Mitigation:</span> {risk.mitigation}
-                          </p>
-                        </div>
-                      </div>
-                      <Badge variant={
-                        risk.severity === "high" ? "destructive" :
-                        risk.severity === "medium" ? "warning" :
-                        "outline"
-                      } className="flex-shrink-0 capitalize">
-                        {risk.severity}
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <div className="flex h-12 w-12 mx-auto mb-3 items-center justify-center rounded-full bg-success/10">
-                  <svg className="h-6 w-6 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            {/* Show if using default risks */}
+            {risks.length === 0 && (
+              <div className="rounded-lg border border-info/30 bg-info/5 p-3 mb-4">
+                <div className="flex items-center gap-2">
+                  <svg className="h-4 w-4 text-info" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
+                  <p className="text-sm text-info">Showing common risks for all government processes. Specific risks will appear based on your application details.</p>
                 </div>
-                <p>No significant risks identified</p>
               </div>
             )}
+
+            {/* Risk List - Always show effectiveRisks (includes defaults) */}
+            <div className="space-y-3">
+              {effectiveRisks.map((risk) => (
+                <div key={risk.id} className={`rounded-lg border-2 p-4 ${
+                  risk.severity === "high" ? "border-destructive/30 bg-destructive/5" :
+                  risk.severity === "medium" ? "border-warning/30 bg-warning/5" :
+                  "border-border bg-card"
+                }`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg ${
+                        risk.severity === "high" ? "bg-destructive text-destructive-foreground" :
+                        risk.severity === "medium" ? "bg-warning text-warning-foreground" :
+                        "bg-muted text-muted-foreground"
+                      }`}>
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="font-medium">{risk.title}</p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          <span className="font-medium">Mitigation:</span> {risk.mitigation}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge variant={
+                      risk.severity === "high" ? "destructive" :
+                      risk.severity === "medium" ? "warning" :
+                      "outline"
+                    } className="flex-shrink-0 capitalize">
+                      {risk.severity}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
 
             {/* Preventive Measures */}
             {result.risks?.preventiveMeasures && result.risks.preventiveMeasures.length > 0 && (
@@ -668,14 +757,38 @@ export function FinalReport({
                     <div key={idx} className="rounded-lg border border-border bg-card p-4">
                       <div className="flex items-center gap-3 mb-3">
                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold">
-                          {expert.role.charAt(0)}
+                          {expert.role?.charAt(0) || 'E'}
                         </div>
                         <div>
-                          <p className="font-semibold">{expert.role}</p>
+                          <p className="font-semibold">{expert.role || 'Expert'}</p>
                           <p className="text-xs text-muted-foreground">Expert Opinion</p>
                         </div>
                       </div>
-                      <p className="text-sm text-foreground leading-relaxed">{expert.advice}</p>
+                      <div className="text-sm text-foreground leading-relaxed space-y-3">
+                        {typeof expert.advice === 'string' ? (
+                          <p>{expert.advice}</p>
+                        ) : typeof expert.advice === 'object' && expert.advice !== null ? (
+                          Object.entries(expert.advice).map(([key, value]) => (
+                            <div key={key} className="border-l-2 border-primary/20 pl-3">
+                              <p className="font-medium text-foreground mb-1">
+                                {key.replace(/^on/, '').replace(/([A-Z])/g, ' $1').trim()}
+                              </p>
+                              {typeof value === 'string' ? (
+                                <p className="text-muted-foreground">{value}</p>
+                              ) : typeof value === 'object' && value !== null ? (
+                                <ul className="space-y-1 text-muted-foreground">
+                                  {Object.entries(value).map(([subKey, subValue]) => (
+                                    <li key={subKey}>
+                                      <span className="font-medium">{subKey.replace(/([A-Z])/g, ' $1').trim()}:</span>{' '}
+                                      {typeof subValue === 'string' ? subValue : JSON.stringify(subValue)}
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : null}
+                            </div>
+                          ))
+                        ) : null}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1127,62 +1240,11 @@ export function FinalReport({
 
         {/* Reminders Tab */}
         {activeTab === "reminders" && (
-          <div className="space-y-4">
-            {reminders.length > 0 ? (
-              <>
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="font-semibold text-lg">Follow-up Reminders</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Important deadlines and follow-ups to track
-                    </p>
-                  </div>
-                  <Badge variant="info">{reminders.length} reminders</Badge>
-                </div>
-                <div className="space-y-3">
-                  {reminders.map((reminder, idx) => (
-                    <div
-                      key={idx}
-                      className="rounded-lg border border-info/30 bg-info/5 p-4 flex items-start gap-3"
-                    >
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-info text-info-foreground flex-shrink-0">
-                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                        </svg>
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm text-foreground">{reminder}</p>
-                      </div>
-                      <Badge variant="outline" className="text-xs flex-shrink-0">
-                        #{idx + 1}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-                
-                {/* Export Reminders */}
-                <div className="rounded-lg border border-border bg-muted/30 p-4">
-                  <p className="text-sm font-semibold mb-2">Pro Tip</p>
-                  <p className="text-sm text-muted-foreground">
-                    Set calendar reminders for each deadline. Government offices often have strict timelines 
-                    and missing a follow-up window can reset your entire process.
-                  </p>
-                </div>
-              </>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <div className="flex h-16 w-16 mx-auto mb-4 items-center justify-center rounded-full bg-muted">
-                  <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                  </svg>
-                </div>
-                <p className="font-medium mb-1">No Reminders Set</p>
-                <p className="text-sm max-w-xs mx-auto">
-                  Reminders will be generated based on your timeline and required follow-ups
-                </p>
-              </div>
-            )}
-          </div>
+          <RemindersPanel 
+            caseId={propCaseId || result.meta?.caseId as string || "default_case"}
+            steps={steps}
+            agentReminders={reminders}
+          />
         )}
       </CardContent>
     </Card>

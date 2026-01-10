@@ -666,8 +666,8 @@ function normalizeResult(rawResult: Record<string, unknown>): ProcessResult | nu
   } as ProcessResult;
 }
 
-// Convert ProcessResult to UI-friendly formats
-function resultToSteps(result: ProcessResult): ProcessStep[] {
+// Convert ProcessResult to UI-friendly formats - EXPORTED for use in report pages
+export function resultToSteps(result: ProcessResult): ProcessStep[] {
   if (!Array.isArray(result.timeline) || !result.timeline.length) return [];
   return result.timeline.map((item, idx) => ({
     id: String(item.id || `step-${idx}`),
@@ -679,7 +679,7 @@ function resultToSteps(result: ProcessResult): ProcessStep[] {
   }));
 }
 
-function resultToCosts(result: ProcessResult): ProcessCost[] {
+export function resultToCosts(result: ProcessResult): ProcessCost[] {
   const lineItems = result.costs?.lineItems;
   if (!Array.isArray(lineItems) || !lineItems.length) return [];
   return lineItems.map((item, idx) => ({
@@ -690,7 +690,7 @@ function resultToCosts(result: ProcessResult): ProcessCost[] {
   }));
 }
 
-function resultToRisks(result: ProcessResult): ProcessRisk[] {
+export function resultToRisks(result: ProcessResult): ProcessRisk[] {
   const items = result.risks?.items;
   if (!Array.isArray(items) || !items.length) return [];
   return items.map((item, idx) => ({
@@ -701,7 +701,7 @@ function resultToRisks(result: ProcessResult): ProcessRisk[] {
   }));
 }
 
-function resultToDocuments(result: ProcessResult): ProcessDocument[] {
+export function resultToDocuments(result: ProcessResult): ProcessDocument[] {
   if (!Array.isArray(result.documents) || !result.documents.length) return [];
   const docs: ProcessDocument[] = [];
   result.documents.forEach((group) => {
