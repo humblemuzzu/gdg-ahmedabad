@@ -92,21 +92,54 @@ function safeJsonParse(value: unknown): unknown {
   if (typeof value !== "string") return value;
   const trimmed = value.trim();
   if (!trimmed) return value;
+  
+  // Try to extract JSON from markdown code blocks
+  const jsonMatch =
+    trimmed.match(/```json\s*([\s\S]*?)\s*```/) || trimmed.match(/```\s*([\s\S]*?)\s*```/);
+  const candidate = (jsonMatch ? jsonMatch[1] : trimmed).trim();
+  
+  // Attempt 1: Direct parse
   try {
-    // Try to extract JSON from markdown code blocks
-    const jsonMatch =
-      trimmed.match(/```json\s*([\s\S]*?)\s*```/) || trimmed.match(/```\s*([\s\S]*?)\s*```/);
-    const candidate = (jsonMatch ? jsonMatch[1] : trimmed).trim();
-    try {
-      return JSON.parse(candidate);
-    } catch {
-      const extracted = extractFirstJson(candidate);
-      if (!extracted) return value;
-      return JSON.parse(extracted);
-    }
-  } catch {
-    return value;
+    return JSON.parse(candidate);
+  } catch (e1) {
+    console.log("[safeJsonParse] Direct parse failed:", (e1 as Error).message?.slice(0, 80));
   }
+  
+  // Attempt 2: Extract first valid JSON block
+  const extracted = extractFirstJson(candidate);
+  if (extracted) {
+    try {
+      return JSON.parse(extracted);
+    } catch (e2) {
+      console.log("[safeJsonParse] Extracted parse failed:", (e2 as Error).message?.slice(0, 80));
+    }
+  }
+  
+  // Attempt 3: Fix common JSON issues (trailing commas, etc)
+  try {
+    const fixed = candidate
+      .replace(/,\s*}/g, "}")
+      .replace(/,\s*]/g, "]");
+    return JSON.parse(fixed);
+  } catch (e3) {
+    console.log("[safeJsonParse] Fixed parse failed:", (e3 as Error).message?.slice(0, 80));
+  }
+  
+  // Attempt 4: Find any JSON object with query/licenses keys
+  const lastDitch = candidate.match(/\{[\s\S]*?"query"[\s\S]*?\}/);
+  if (lastDitch) {
+    try {
+      return JSON.parse(lastDitch[0]);
+    } catch {
+      // Give up
+    }
+  }
+  
+  console.error("[safeJsonParse] All parsing attempts failed. String length:", trimmed.length);
+  console.error("[safeJsonParse] First 300 chars:", trimmed.slice(0, 300));
+  console.error("[safeJsonParse] Last 300 chars:", trimmed.slice(-300));
+  
+  return value;
 }
 
 function mergeSessionStateIntoResult(state: Record<string, unknown>, result: unknown): unknown {

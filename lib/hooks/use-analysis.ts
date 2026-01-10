@@ -84,20 +84,39 @@ function parseJsonLoose(value: unknown): unknown {
   const trimmed = value.trim();
   if (!trimmed) return value;
 
+  // Try multiple extraction methods
   const jsonMatch =
     trimmed.match(/```json\s*([\s\S]*?)\s*```/) || trimmed.match(/```\s*([\s\S]*?)\s*```/);
   const candidate = (jsonMatch ? jsonMatch[1] : trimmed).trim();
 
   try {
     return JSON.parse(candidate);
-  } catch {
+  } catch (e1) {
+    console.log("[parseJsonLoose] Direct parse failed, trying extractFirstJson...", (e1 as Error).message?.slice(0, 100));
     const extracted = extractFirstJson(candidate);
-    if (!extracted) return value;
-    try {
-      return JSON.parse(extracted);
-    } catch {
-      return value;
+    if (extracted) {
+      try {
+        return JSON.parse(extracted);
+      } catch (e2) {
+        console.log("[parseJsonLoose] extractFirstJson parse failed:", (e2 as Error).message?.slice(0, 100));
+      }
     }
+    
+    // Last resort: try to fix common JSON issues
+    try {
+      // Remove trailing commas before } or ]
+      const fixed = candidate
+        .replace(/,\s*}/g, "}")
+        .replace(/,\s*]/g, "]")
+        // Fix unescaped newlines in strings (common LLM issue)
+        .replace(/([^\\])\\n/g, "$1\\\\n");
+      return JSON.parse(fixed);
+    } catch (e3) {
+      console.log("[parseJsonLoose] Fixed parse failed:", (e3 as Error).message?.slice(0, 100));
+      console.log("[parseJsonLoose] Candidate preview:", candidate.slice(0, 300), "...", candidate.slice(-200));
+    }
+    
+    return value;
   }
 }
 
@@ -888,11 +907,34 @@ function handleSSEEvent(
       
       const parsed = parseJsonLoose(rawResult);
       
+      console.log("[Analysis] Parsed type:", typeof parsed, Array.isArray(parsed) ? "(array)" : "");
+      
       // Normalize the result to handle both demo and full pipeline formats
-      const parsedRecord = asRecord(parsed);
+      let parsedRecord = asRecord(parsed);
+      
+      // If parsing failed and we got a string back, log it for debugging
+      if (!parsedRecord && typeof parsed === "string") {
+        console.error("[Analysis] JSON parsing failed! Raw string length:", parsed.length);
+        console.error("[Analysis] First 500 chars:", parsed.slice(0, 500));
+        console.error("[Analysis] Last 500 chars:", parsed.slice(-500));
+        
+        // Try one more aggressive extraction
+        const lastDitchMatch = parsed.match(/\{[\s\S]*"query"[\s\S]*"licenses"[\s\S]*\}/);
+        if (lastDitchMatch) {
+          try {
+            parsedRecord = JSON.parse(lastDitchMatch[0]);
+            console.log("[Analysis] Last ditch extraction worked!");
+          } catch {
+            console.error("[Analysis] Last ditch extraction also failed");
+          }
+        }
+      }
+      
       if (parsedRecord) {
         result = normalizeResult(parsedRecord);
         console.log("[Analysis] Normalized result:", result ? "SUCCESS" : "FAILED");
+      } else {
+        console.error("[Analysis] Could not parse result into a record object");
       }
 
       setState((prev) => {

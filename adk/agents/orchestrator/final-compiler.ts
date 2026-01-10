@@ -26,6 +26,10 @@ export const finalCompilerAgent = new LlmAgent({
     for (const [k, v] of Object.entries(record)) parsed[k] = safeJsonParse(v);
 
     request.config ??= {};
+
+    // Force Gemini to emit machine-parseable JSON (prevents ```json fences and stray text)
+    request.config.responseMimeType = "application/json";
+
     const snapshot = JSON.stringify(parsed, null, 2);
     request.config.systemInstruction =
       (request.config.systemInstruction ? `${request.config.systemInstruction}\n\n` : "") +
