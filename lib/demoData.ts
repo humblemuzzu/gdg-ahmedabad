@@ -647,20 +647,146 @@ export const DEMO_RESULT: ProcessResult = {
       "Annual: Renew FSSAI, Health License, Eating House License"
     ],
 
+    // Expert Advice - structured for FinalReport ExpertPerspective[]
     expertAdvice: {
-      ca: "Register for GST Composition Scheme if turnover will be under Rs 1.5 Cr - simpler compliance and lower tax rate of 5%. Keep all purchase invoices for input credit on equipment.",
-      lawyer: "Get rent agreement reviewed - ensure it permits 'restaurant/food business' use, has clear exit clause, and specifies who bears cost of structural modifications. Get landlord's OC verification in writing.",
-      owner: "Pro tip from successful restaurant owners: Start Fire NOC process on Day 1 - it's always the bottleneck. Keep Rs 50,000 buffer for unexpected compliance costs. Build relationship with ward officer - they can expedite many things."
+      perspectives: [
+        {
+          role: "Chartered Accountant",
+          advice: "Register for GST Composition Scheme if turnover will be under Rs 1.5 Cr - simpler compliance and lower tax rate of 5%. Keep all purchase invoices for input credit on equipment. File GST returns quarterly instead of monthly to save time."
+        },
+        {
+          role: "Business Lawyer", 
+          advice: "Get rent agreement reviewed - ensure it permits 'restaurant/food business' use, has clear exit clause, and specifies who bears cost of structural modifications. Get landlord's OC verification in writing. Consider trademark registration for your restaurant name early."
+        },
+        {
+          role: "Restaurant Owner (15 years experience)",
+          advice: "Pro tip: Start Fire NOC process on Day 1 - it's always the bottleneck. Keep Rs 50,000 buffer for unexpected compliance costs. Build relationship with ward officer - they can expedite many things. Don't skimp on fire safety equipment - it pays off during inspections."
+        },
+        {
+          role: "Food Safety Consultant",
+          advice: "Get FOSTAC training done for at least 2 staff members, not just one. This provides backup. Keep your water testing reports updated every 6 months. Install a pest control log book at the entrance - inspectors love documentation."
+        }
+      ],
+      recommendation: "Based on our analysis, we recommend starting with GST and Fire NOC applications simultaneously. Hire a local consultant familiar with AMC procedures - the Rs 15-20K investment typically saves 2-3 weeks and multiple failed visits."
     },
 
+    // State Comparison - structured for FinalReport StateComparisonData
     stateComparison: {
-      comparedStates: ["Gujarat", "Maharashtra", "Karnataka"],
-      summary: "Gujarat is moderately restaurant-friendly. No liquor license (dry state) but simpler food licensing than Maharashtra. Karnataka (Bengaluru) has stricter zoning but faster digital processing.",
-      details: {
-        Gujarat: { timeline: "45-60 days", complexity: "Medium", cost: "Rs 45-85K" },
-        Maharashtra: { timeline: "60-90 days", complexity: "High (Gumasta needed)", cost: "Rs 60-1.2L" },
-        Karnataka: { timeline: "30-45 days", complexity: "Medium-High", cost: "Rs 50-90K" }
-      }
+      states: [
+        {
+          state: "Gujarat",
+          totalDays: { min: 45, max: 65 },
+          totalCost: 65000,
+          complexity: 6,
+          advantages: [
+            "Online portals available for most licenses",
+            "No liquor licensing complexity (dry state)",
+            "RTPS Act ensures time-bound delivery",
+            "AMC has dedicated help desk for restaurants"
+          ],
+          disadvantages: [
+            "Fire NOC process is slow (25-45 days)",
+            "Eating House License requires police verification",
+            "No alcohol revenue means tighter margins"
+          ]
+        },
+        {
+          state: "Maharashtra",
+          totalDays: { min: 60, max: 90 },
+          totalCost: 85000,
+          complexity: 8,
+          advantages: [
+            "Liquor license possible (additional revenue)",
+            "Well-documented processes",
+            "Multiple consultants available"
+          ],
+          disadvantages: [
+            "Gumasta License adds extra step",
+            "BMC procedures are complex",
+            "Higher official fees",
+            "More inspections required"
+          ]
+        },
+        {
+          state: "Karnataka",
+          totalDays: { min: 30, max: 50 },
+          totalCost: 70000,
+          complexity: 7,
+          advantages: [
+            "Fastest digital processing in India",
+            "Single-window clearance available",
+            "BBMP has streamlined restaurant licensing"
+          ],
+          disadvantages: [
+            "Stricter zoning requirements",
+            "Higher property costs",
+            "Language barrier in some offices"
+          ]
+        }
+      ],
+      recommendation: "Gujarat offers a balanced approach with moderate complexity. If speed is priority, consider Karnataka. If you want liquor service, Maharashtra is the only option among these three."
+    },
+
+    // What-If Scenarios - structured for FinalReport WhatIfData
+    whatIf: {
+      scenarios: [
+        {
+          scenario: "What if Fire NOC is rejected?",
+          probability: 0.15,
+          impact: "High - delays opening by 30-45 days",
+          mitigation: "Ensure building has valid OC before signing lease. Pre-inspect with a fire safety consultant.",
+          outcomes: [
+            { outcome: "Fix issues and reapply", probability: 0.7, action: "Address specific rejection points, reapply within 15 days" },
+            { outcome: "Appeal to Chief Fire Officer", probability: 0.2, action: "File formal appeal with rectification proof" },
+            { outcome: "Change premises", probability: 0.1, action: "Find new location with valid OC - last resort" }
+          ]
+        },
+        {
+          scenario: "What if FSSAI inspection fails?",
+          probability: 0.20,
+          impact: "Medium - delays by 15-20 days",
+          mitigation: "Keep kitchen spotless, ensure water testing is current, have all staff medical certificates ready.",
+          outcomes: [
+            { outcome: "Rectify and request re-inspection", probability: 0.8, action: "Fix hygiene issues, apply for re-inspection within 7 days" },
+            { outcome: "Hire food safety consultant", probability: 0.15, action: "Get professional help to ensure compliance" },
+            { outcome: "Escalate via FSSAI grievance", probability: 0.05, action: "If inspection was unfair, file formal complaint" }
+          ]
+        },
+        {
+          scenario: "What if landlord withdraws NOC?",
+          probability: 0.05,
+          impact: "Critical - all licenses at risk",
+          mitigation: "Get NOC notarized on stamp paper with clear terms. Include penalty clause in rent agreement.",
+          outcomes: [
+            { outcome: "Negotiate with landlord", probability: 0.5, action: "Understand concerns, offer solutions" },
+            { outcome: "Legal notice", probability: 0.3, action: "Send legal notice citing registered agreement" },
+            { outcome: "Find new premises", probability: 0.2, action: "Start fresh - costly but sometimes necessary" }
+          ]
+        },
+        {
+          scenario: "What if bribe is demanded?",
+          probability: 0.25,
+          impact: "Medium - ethical and legal risk",
+          mitigation: "Apply through official portals, maintain paper trail, know RTI process.",
+          outcomes: [
+            { outcome: "Refuse and escalate", probability: 0.6, action: "File complaint on state anti-corruption portal" },
+            { outcome: "Request official receipt", probability: 0.25, action: "Ask for official challan - usually stops demand" },
+            { outcome: "File RTI for status", probability: 0.15, action: "RTI creates paper trail and expedites legitimate processing" }
+          ]
+        },
+        {
+          scenario: "What if health inspector doesn't visit?",
+          probability: 0.30,
+          impact: "Low-Medium - delays by 10-15 days",
+          mitigation: "Follow up weekly via official channels. Keep premises ready for surprise visit anytime.",
+          outcomes: [
+            { outcome: "Follow up at AMC office", probability: 0.5, action: "Visit health department, request inspection date" },
+            { outcome: "File RTPS complaint", probability: 0.3, action: "Under Right to Service Act, demand time-bound action" },
+            { outcome: "Escalate to Zonal Officer", probability: 0.2, action: "Request senior officer intervention" }
+          ]
+        }
+      ],
+      recommendation: "Most scenarios are manageable with proper preparation. The key is to verify building OC before signing lease - this prevents the most critical failure mode. Budget 20% extra time for unexpected delays."
     }
   },
 
