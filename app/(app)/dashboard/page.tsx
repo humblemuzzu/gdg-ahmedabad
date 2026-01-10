@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { AgentActivityStream } from "@/components/agents/AgentActivityStream";
+import { AgentDebateViewer } from "@/components/agents/AgentDebateViewer";
 import { AgentGrid } from "@/components/agents/AgentGrid";
 import { DocumentChecklist } from "@/components/process/DocumentChecklist";
 import { ProcessInput } from "@/components/process/ProcessInput";
@@ -15,7 +16,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useAnalysisContext } from "@/lib/context/analysis-context";
 
 export default function DashboardPage() {
-  const { agents, activities, risks, documents, steps, costs, result, isRunning, isComplete, status, query } = useAnalysisContext();
+  const { agents, activities, risks, documents, steps, costs, result, isRunning, isComplete, status, query, debateMessages, typingAgent } = useAnalysisContext();
 
   const activeAgentCount = agents.filter((a) => a.status === "working").length;
   const completedAgentCount = agents.filter((a) => a.status === "done").length;
@@ -153,35 +154,46 @@ export default function DashboardPage() {
 
         {/* Right Column - Sidebar Content */}
         <div className="space-y-6">
+          {/* Agent Collaboration/Debate */}
+          {(isRunning || debateMessages.length > 0) && (
+            <AgentDebateViewer 
+              messages={debateMessages} 
+              isLive={isRunning} 
+              typingAgent={typingAgent}
+            />
+          )}
+
           {/* Agent Activity */}
           <AgentActivityStream events={activities} />
 
           {/* Agents Grid */}
-          <Card>
+          <Card className="overflow-hidden">
             <CardHeader>
               <div className="flex items-center justify-between gap-3">
-                <div>
+                <div className="min-w-0 flex-1">
                   <CardTitle>Agent Roster</CardTitle>
                   <CardDescription>Your AI team at work</CardDescription>
                 </div>
                 <Link
                   href="/process/demo"
-                  className="text-sm font-semibold text-primary hover:underline"
+                  className="flex-shrink-0 text-sm font-semibold text-primary hover:underline"
                 >
                   View all
                 </Link>
               </div>
             </CardHeader>
-            <CardContent>
-              <AgentGrid agents={agents} compact />
+            <CardContent className="overflow-x-hidden">
+              <div className="max-w-full">
+                <AgentGrid agents={agents} compact />
+              </div>
               <div className="mt-4 flex items-center gap-2 border-t-2 border-border pt-4">
-                <div className="relative">
+                <div className="relative flex-shrink-0">
                   <div className={`h-2 w-2 rounded-full ${isRunning ? "bg-primary" : "bg-success"}`} />
                   {isRunning && (
                     <div className="absolute inset-0 h-2 w-2 animate-ping rounded-full bg-primary opacity-75" />
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground truncate">
                   {isRunning
                     ? `${activeAgentCount} agent${activeAgentCount !== 1 ? "s" : ""} working`
                     : "Orchestration stream ready"}

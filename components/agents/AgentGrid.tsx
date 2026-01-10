@@ -19,7 +19,7 @@ export function AgentGrid({ agents = [], compact }: AgentGridProps) {
   }
   
   return (
-    <div className={compact ? "grid grid-cols-1 gap-3" : "grid grid-cols-1 gap-3 md:grid-cols-2"}>
+    <div className={compact ? "grid grid-cols-1 gap-4 overflow-hidden" : "grid grid-cols-1 gap-4 md:grid-cols-2 lg:gap-5 overflow-hidden"}>
       {displayAgents.map((agent) => (
         <AgentCard key={agent.id} agent={agent} />
       ))}

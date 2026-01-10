@@ -1,5 +1,4 @@
 import { LlmAgent } from "@google/adk";
-import { Type } from "@google/genai";
 import { PROMPTS } from "../../prompts/templates";
 import { defaultModel } from "../shared/model";
 
@@ -20,7 +19,7 @@ export const finalCompilerAgent = new LlmAgent({
   model: defaultModel,
   instruction: [PROMPTS.GLOBAL_IDENTITY, PROMPTS.JSON_OUTPUT_RULES, PROMPTS.FINAL_COMPILER].join("\n\n"),
   outputKey: "bb_result",
-  outputSchema: { type: Type.OBJECT },
+  // Note: outputSchema removed as it conflicts with sequential agent orchestration
   beforeModelCallback: async ({ context, request }) => {
     const record = context.state.toRecord();
     const parsed: Record<string, unknown> = {};

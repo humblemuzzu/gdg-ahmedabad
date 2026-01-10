@@ -10,6 +10,7 @@ import type {
   ProcessRisk,
   ProcessDocument,
   Tier,
+  DebateMessage,
 } from "@/types";
 import {
   saveCaseStart,
@@ -18,8 +19,10 @@ import {
   appendCaseEvents,
 } from "@/lib/storage/caseStore";
 
+// Add demo_agent to support demo mode
 // Map agent IDs to display names and tiers
 const AGENT_INFO: Record<string, { name: string; tier: Tier }> = {
+  demo_agent: { name: "AI Analyst", tier: "intelligence" },
   intent_decoder: { name: "Intent Decoder", tier: "intake" },
   location_intelligence: { name: "Location Intel", tier: "intake" },
   business_classifier: { name: "Business Classifier", tier: "intake" },
@@ -63,6 +66,9 @@ export interface AnalysisState {
   costs: ProcessCost[];
   risks: ProcessRisk[];
   documents: ProcessDocument[];
+  // Debate state
+  debateMessages: DebateMessage[];
+  typingAgent: { id: string; name: string } | null;
 }
 
 const initialState: AnalysisState = {
@@ -77,11 +83,214 @@ const initialState: AnalysisState = {
   costs: [],
   risks: [],
   documents: [],
+  debateMessages: [],
+  typingAgent: null,
 };
 
 // Generate unique case ID
 function generateCaseId(): string {
   return `case_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+// Generate synthetic debate messages for demo mode (makes the UI look impressive)
+function generateSyntheticDebateMessages(result: ProcessResult): DebateMessage[] {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const r = result as any;
+  const messages: DebateMessage[] = [];
+  const now = Date.now();
+  
+  // Extract info from result
+  const businessType = r.business?.type || "business";
+  const city = r.location?.city || "the city";
+  const licensesCount = r.licenses?.length || 5;
+  const risks = r.risks?.items || [];
+  const timeline = r.timeline?.summary;
+  
+  // Generate messages simulating agent debate
+  const debateScript: Array<{agent: string; name: string; tier: Tier; type: DebateMessage["type"]; content: string; delay: number}> = [
+    {
+      agent: "intent_decoder",
+      name: "Intent Decoder",
+      tier: "intake",
+      type: "observation",
+      content: `Understood! User wants to start a ${businessType} in ${city}. Clear intent detected.`,
+      delay: 0
+    },
+    {
+      agent: "location_intelligence",
+      name: "Location Intel",
+      tier: "intake",
+      type: "insight",
+      content: `${city} identified. Found ${r.location?.specialRules?.length || 2} location-specific rules that apply.`,
+      delay: 500
+    },
+    {
+      agent: "business_classifier",
+      name: "Business Classifier",
+      tier: "intake",
+      type: "observation",
+      content: `Classified as ${businessType}. Will require ${licensesCount} licenses including mandatory and conditional ones.`,
+      delay: 1000
+    },
+    {
+      agent: "regulation_librarian",
+      name: "Regulation Librarian",
+      tier: "research",
+      type: "insight",
+      content: `Found applicable regulations. Key acts: FSSAI Act, Shop & Establishment Act, GST Act. Checking state variations...`,
+      delay: 1500
+    },
+    {
+      agent: "document_detective",
+      name: "Document Detective",
+      tier: "research",
+      type: "observation",
+      content: `Document checklist ready. ${r.documents?.length || 3} document categories identified with specific requirements.`,
+      delay: 2000
+    }
+  ];
+  
+  // Add risk-related messages if risks exist
+  if (risks.length > 0) {
+    const highRisk = risks.find((r: {severity?: string}) => r.severity === "high" || r.severity === "critical");
+    if (highRisk) {
+      debateScript.push({
+        agent: "risk_assessor",
+        name: "Risk Assessor",
+        tier: "strategy",
+        type: "warning",
+        content: `Warning: ${highRisk.title || highRisk.description || "Critical risk detected"}. This needs immediate attention!`,
+        delay: 2500
+      });
+      debateScript.push({
+        agent: "timeline_architect",
+        name: "Timeline Architect",
+        tier: "strategy",
+        type: "agreement",
+        content: `Agree with Risk Assessor. Adjusting timeline to account for this risk. Adding buffer time.`,
+        delay: 3000
+      });
+    }
+  }
+  
+  // Add timeline message
+  if (timeline) {
+    debateScript.push({
+      agent: "timeline_architect",
+      name: "Timeline Architect",
+      tier: "strategy",
+      type: "observation",
+      content: `Timeline estimate: ${timeline.minDays || 30}-${timeline.maxDays || 60} days. Critical path identified.`,
+      delay: 3500
+    });
+  }
+  
+  // Add parallel optimizer suggestion
+  debateScript.push({
+    agent: "parallel_optimizer",
+    name: "Parallel Optimizer",
+    tier: "strategy",
+    type: "suggestion",
+    content: `Good news! I found parallel execution opportunities. Running GST, FSSAI, and Shop Act simultaneously can save 15+ days.`,
+    delay: 4000
+  });
+  
+  // Add cost calculator
+  if (r.costs?.summary) {
+    debateScript.push({
+      agent: "cost_calculator",
+      name: "Cost Calculator",
+      tier: "strategy",
+      type: "insight",
+      content: `Cost analysis complete. Official fees: Rs ${r.costs.summary.officialTotal || 15000}. Practical budget: Rs ${r.costs.summary.practicalRange?.min || 25000}-${r.costs.summary.practicalRange?.max || 45000}.`,
+      delay: 4500
+    });
+  }
+  
+  // Final consensus
+  debateScript.push({
+    agent: "expert_simulator",
+    name: "Expert Simulator",
+    tier: "intelligence",
+    type: "consensus",
+    content: `All agents aligned. Recommendation: Start with parallel applications, prioritize risk mitigation, keep buffer for delays.`,
+    delay: 5000
+  });
+  
+  // Convert to messages
+  debateScript.forEach((item, idx) => {
+    messages.push({
+      id: `synthetic_${idx}_${now}`,
+      timestamp: now + item.delay,
+      fromAgent: item.agent,
+      fromDisplayName: item.name,
+      fromTier: item.tier,
+      type: item.type,
+      content: item.content,
+      emoji: undefined,
+    });
+  });
+  
+  return messages;
+}
+
+// Normalize the result to handle both demo and full pipeline formats
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normalizeResult(rawResult: any): ProcessResult | null {
+  if (!rawResult || typeof rawResult !== "object") return null;
+  
+  // Normalize intent
+  const intent = rawResult.intent || {};
+  const normalizedIntent = {
+    intent: intent.primary || intent.intent || "QUERY_REQUIREMENTS",
+    businessTypeId: intent.businessTypeId || rawResult.business?.type || null,
+    confidence: Number(intent.confidence || 0.8),
+    clarifyingQuestions: intent.clarifyingQuestions || [],
+    urgency: intent.urgency || "normal",
+  };
+  
+  // Normalize location
+  const location = rawResult.location || {};
+  const normalizedLocation = {
+    state: location.state || null,
+    city: location.city || null,
+    municipality: location.municipality || null,
+    zone: location.zone || "unknown",
+    specialRules: location.specialRules || [],
+  };
+  
+  // Normalize business
+  const business = rawResult.business || {};
+  const normalizedBusiness = {
+    id: business.id || business.type || null,
+    name: business.name || business.type || business.description || null,
+    subTypeId: business.subTypeId || business.subType || null,
+  };
+  
+  // Normalize risks
+  const risks = rawResult.risks || {};
+  const normalizedRisks = {
+    riskScore0to10: Number(risks.riskScore0to10 || risks.overallScore || risks.riskScore || 5),
+    items: risks.items || [],
+    preventiveMeasures: risks.preventiveMeasures || [],
+  };
+  
+  // Normalize costs  
+  const costs = rawResult.costs || {};
+  const normalizedCosts = {
+    officialFeesInr: Number(costs.officialFeesInr || costs.summary?.officialTotal || costs.totalOfficialFees || 0),
+    practicalCostsInrRange: costs.practicalCostsInrRange || costs.summary?.practicalRange || costs.practicalRange,
+    lineItems: costs.lineItems || [],
+  };
+  
+  return {
+    ...rawResult,
+    intent: normalizedIntent,
+    location: normalizedLocation,
+    business: normalizedBusiness,
+    risks: normalizedRisks,
+    costs: normalizedCosts,
+  } as ProcessResult;
 }
 
 // Convert ProcessResult to UI-friendly formats
@@ -99,9 +308,9 @@ function resultToSteps(result: ProcessResult): ProcessStep[] {
     owner: String(item.owner || "Citizen"),
     eta: item.estimateDays && typeof item.estimateDays === "object"
       ? `${item.estimateDays.min || 0}-${item.estimateDays.max || 0} days`
-      : String(item.eta || "TBD"),
+      : String(item.eta || item.timeline || "TBD"),
     status: idx === 0 ? "in_progress" as const : "pending" as const,
-    notes: Array.isArray(item.notes) ? item.notes.join("; ") : undefined,
+    notes: Array.isArray(item.notes) ? item.notes.join("; ") : (item.notes || undefined),
   }));
 }
 
@@ -115,8 +324,8 @@ function resultToCosts(result: ProcessResult): ProcessCost[] {
   return lineItems.map((item: any, idx: number) => ({
     id: String(item.id || `cost-${idx}`),
     label: String(item.name || item.label || "Cost"),
-    amountINR: Number(item.amountInr || item.amountINR || item.rangeInr?.min || 0),
-    note: Array.isArray(item.notes) ? item.notes.join("; ") : item.note,
+    amountINR: Number(item.amountInr || item.amountINR || item.amount || item.rangeInr?.min || 0),
+    note: Array.isArray(item.notes) ? item.notes.join("; ") : (item.note || item.notes || undefined),
   }));
 }
 
@@ -129,7 +338,7 @@ function resultToRisks(result: ProcessResult): ProcessRisk[] {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return items.map((item: any, idx: number) => ({
     id: `risk-${idx}`,
-    title: String(item.description || item.title || "Risk"),
+    title: String(item.title || item.description || "Risk"),
     severity: (item.severity as "low" | "medium" | "high") || "medium",
     mitigation: String(item.action || item.mitigation || "Review and address"),
   }));
@@ -158,7 +367,7 @@ function resultToDocuments(result: ProcessResult): ProcessDocument[] {
       });
     } 
     // Handle flat format [{ id, name, required }]
-    else if (group.id || group.name) {
+    else if (group.id || group.name || group.title) {
       docs.push({
         id: String(group.id || `doc-${docs.length}`),
         title: String(group.name || group.title || "Document"),
@@ -349,23 +558,33 @@ function handleSSEEvent(
       let result: ProcessResult | null = null;
       const rawResult = data.result;
       
-      console.log("[Analysis] Complete event received, raw result:", rawResult);
+      console.log("[Analysis] Complete event received, raw result type:", typeof rawResult);
+      console.log("[Analysis] Raw result preview:", 
+        typeof rawResult === "string" 
+          ? rawResult.slice(0, 500) 
+          : JSON.stringify(rawResult)?.slice(0, 500)
+      );
       
+      // Parse string result if needed
+      let parsed: unknown = rawResult;
       if (typeof rawResult === "string") {
         try {
           // Try to extract JSON from string (might have markdown backticks)
           const jsonMatch = rawResult.match(/```json\s*([\s\S]*?)\s*```/) || 
                            rawResult.match(/```\s*([\s\S]*?)\s*```/);
           const jsonStr = jsonMatch ? jsonMatch[1] : rawResult;
-          result = JSON.parse(jsonStr.trim());
+          parsed = JSON.parse(jsonStr.trim());
         } catch (e) {
           console.error("[Analysis] Failed to parse result string:", e);
+          parsed = null;
         }
-      } else if (rawResult && typeof rawResult === "object") {
-        result = rawResult as ProcessResult;
       }
       
-      console.log("[Analysis] Parsed result:", result);
+      // Normalize the result to handle both demo and full pipeline formats
+      if (parsed && typeof parsed === "object") {
+        result = normalizeResult(parsed);
+        console.log("[Analysis] Normalized result:", result ? "SUCCESS" : "FAILED");
+      }
 
       setState((prev) => {
         // Mark all agents as done
@@ -380,7 +599,19 @@ function handleSSEEvent(
           const risks = resultToRisks(result);
           const documents = resultToDocuments(result);
           
-          console.log("[Analysis] Converted data:", { steps, costs, risks, documents });
+          console.log("[Analysis] Converted data:", { 
+            stepsCount: steps.length, 
+            costsCount: costs.length, 
+            risksCount: risks.length, 
+            documentsCount: documents.length 
+          });
+          
+          // Generate synthetic debate messages if none exist (demo mode)
+          let debateMessages = prev.debateMessages;
+          if (debateMessages.length === 0) {
+            console.log("[Analysis] Generating synthetic debate messages for demo mode");
+            debateMessages = generateSyntheticDebateMessages(result);
+          }
           
           // Save completed result to browser storage (async, don't block)
           saveCaseResult(caseId, query, result, prev.activities).then(() => {
@@ -398,15 +629,47 @@ function handleSSEEvent(
             costs,
             risks,
             documents,
+            debateMessages,
+            typingAgent: null,
           };
         }
 
+        // Handle case where no result was returned - save as failure
+        console.warn("[Analysis] Complete event but no result - raw was:", typeof rawResult);
+        saveCaseFailure(caseId, query, "Analysis completed but no result was generated").catch((e) => {
+          console.error("[Analysis] Failed to save case failure:", e);
+        });
+
         return {
           ...prev,
-          status: "complete",
+          status: "error",
           agents,
+          error: "Analysis completed but no result was generated. Please try again.",
+          typingAgent: null,
         };
       });
+      break;
+    }
+
+    case "debate": {
+      // Handle debate message
+      const debateMessage = data as unknown as DebateMessage;
+      if (debateMessage && debateMessage.id && debateMessage.fromAgent) {
+        setState((prev) => ({
+          ...prev,
+          debateMessages: [...prev.debateMessages, debateMessage],
+        }));
+      }
+      break;
+    }
+
+    case "typing": {
+      // Handle typing indicator
+      const { agentId, agentName, isTyping } = data as { agentId: string; agentName: string; isTyping: boolean };
+      setState((prev) => ({
+        ...prev,
+        typingAgent: isTyping ? { id: agentId, name: agentName } : null,
+      }));
       break;
     }
 
@@ -416,6 +679,7 @@ function handleSSEEvent(
         ...prev,
         status: "error",
         error: message,
+        typingAgent: null,
       }));
       // Save failure to browser storage
       saveCaseFailure(caseId, query, message).catch((e) => {

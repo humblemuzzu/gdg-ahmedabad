@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { ThemeButton } from "@/components/theme/ThemeButton";
 
 const pageMeta: Record<string, { title: string; description: string }> = {
   "/dashboard": {
@@ -78,6 +79,9 @@ export function Header({
             </svg>
             <span className="text-foreground">{title}</span>
           </div>
+
+          {/* Theme Button */}
+          <ThemeButton />
 
           {/* New plan CTA */}
           <Link

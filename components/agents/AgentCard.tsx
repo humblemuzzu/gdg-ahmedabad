@@ -34,24 +34,28 @@ export function AgentCard({ agent, className }: { agent: Agent; className?: stri
   return (
     <div
       className={cn(
-        "group rounded-xl border-2 border-border bg-card p-4 transition-all hover:border-primary/50 hover:shadow-md",
+        "group rounded-lg border border-border bg-card p-5 transition-all hover:border-primary/30 hover:bg-muted/30 overflow-hidden",
         className
       )}
     >
-      <div className="flex items-start gap-3">
-        <AgentAvatar name={agent.name} tier={agent.tier} />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              {statusIndicator(agent.status)}
-              <p className="truncate text-sm font-semibold text-foreground">{agent.name}</p>
+      <div className="flex items-start gap-4 min-w-0">
+        <div className="flex-shrink-0">
+          <AgentAvatar name={agent.name} tier={agent.tier} />
+        </div>
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <div className="flex items-center justify-between gap-3 min-w-0">
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+              <div className="flex-shrink-0">
+                {statusIndicator(agent.status)}
+              </div>
+              <p className="truncate text-base font-semibold text-foreground min-w-0">{agent.name}</p>
             </div>
             <div className="flex-shrink-0">{statusBadge(agent.status)}</div>
           </div>
           {agent.summary ? (
-            <p className="mt-1.5 line-clamp-2 text-xs text-muted-foreground">{agent.summary}</p>
+            <p className="mt-2 line-clamp-2 text-sm text-muted-foreground leading-relaxed break-words">{agent.summary}</p>
           ) : (
-            <p className="mt-1.5 text-xs italic text-muted-foreground/60">Standing by...</p>
+            <p className="mt-2 text-sm italic text-muted-foreground/50">Standing by...</p>
           )}
         </div>
       </div>

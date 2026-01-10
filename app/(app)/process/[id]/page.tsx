@@ -19,7 +19,7 @@ export default function ProcessPage({
   params: { id: string };
 }) {
   const { id } = params;
-  const { steps, costs, risks, documents, activities, isComplete, query } = useAnalysisContext();
+  const { steps, costs, risks, documents, activities, isComplete, query, debateMessages, typingAgent, isRunning } = useAnalysisContext();
 
   return (
     <div className="space-y-6">
@@ -53,7 +53,11 @@ export default function ProcessPage({
         </div>
         <div className="space-y-6">
           <AgentActivityStream events={activities} />
-          <AgentDebateViewer />
+          <AgentDebateViewer 
+            messages={debateMessages} 
+            isLive={isRunning}
+            typingAgent={typingAgent}
+          />
           <DocumentChecklist documents={documents} />
           <Card>
             <CardHeader>

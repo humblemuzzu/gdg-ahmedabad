@@ -62,6 +62,18 @@ export async function POST(req: Request) {
                 functionResponses: item.functionResponses,
               })
             );
+          } else if (item.type === "debate") {
+            // Stream debate message
+            controller.enqueue(sseEncode("debate", item.message));
+          } else if (item.type === "typing") {
+            // Stream typing indicator
+            controller.enqueue(
+              sseEncode("typing", {
+                agentId: item.agentId,
+                agentName: item.agentName,
+                isTyping: item.isTyping,
+              })
+            );
           } else if (item.type === "complete") {
             finalResult = { result: item.result, sessionId: item.sessionId, userId: item.userId };
             controller.enqueue(sseEncode("complete", finalResult));

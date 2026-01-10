@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import type { ProcessResult, ProcessStep, ProcessCost, ProcessRisk, ProcessDocument } from "@/types";
+import { Button } from "@/components/ui/button";
+import type { ProcessResult, ProcessStep, ProcessCost, ProcessRisk, ProcessDocument, GeneratedDraft, TimelinePlanItem, DependencyGraph } from "@/types";
+import { ProcessDependencyGraph } from "./ProcessDependencyGraph";
 
 interface FinalReportProps {
   result: ProcessResult | null;
@@ -20,6 +22,48 @@ interface ExpertPerspective {
   advice: string;
 }
 
+interface StateComparisonData {
+  states?: Array<{
+    state: string;
+    totalDays: { min: number; max: number };
+    totalCost: number;
+    complexity: number;
+    advantages?: string[];
+    disadvantages?: string[];
+  }>;
+  recommendation?: string;
+}
+
+interface WhatIfScenario {
+  scenario: string;
+  probability?: number;
+  impact?: string;
+  mitigation?: string;
+  outcomes?: Array<{
+    outcome: string;
+    probability?: number;
+    action?: string;
+  }>;
+}
+
+interface WhatIfData {
+  scenarios?: WhatIfScenario[];
+  recommendation?: string;
+}
+
+interface VisitPlanData {
+  visits?: Array<{
+    time?: string;
+    office: string;
+    purpose: string;
+    tips?: string[];
+    documentsNeeded?: string[];
+  }>;
+  optimizationTips?: string[];
+}
+
+type TabId = "overview" | "timeline" | "costs" | "documents" | "risks" | "experts" | "drafts" | "comparison" | "whatif" | "visits" | "dependencies" | "reminders";
+
 export function FinalReport({ 
   result, 
   isComplete, 
@@ -29,14 +73,22 @@ export function FinalReport({
   risks,
   documents 
 }: FinalReportProps) {
-  const [activeTab, setActiveTab] = useState<"overview" | "timeline" | "costs" | "documents" | "risks" | "experts">("overview");
+  const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const [copiedDraft, setCopiedDraft] = useState<string | null>(null);
 
   if (!isComplete || !result) {
     return null;
   }
 
-  // Extract key info from result
-  const businessName = result.business?.name || result.intent?.businessTypeId || "Your Business";
+  // Cast to any for flexible property access (handles both demo and full pipeline formats)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const r = result as any;
+
+  // Extract key info from result (handle both demo and full pipeline formats)
+  const businessName = result.business?.name || 
+                       r.business?.type ||
+                       result.intent?.businessTypeId || 
+                       "Your Business";
   const location = result.location?.city 
     ? `${result.location.city}, ${result.location.state || "India"}`
     : result.location?.state || "India";
@@ -44,20 +96,36 @@ export function FinalReport({
   // Get licenses count
   const licensesCount = result.licenses?.length || 0;
   
-  // Get timeline estimate
-  const timelineItems = result.timeline || [];
-  const totalDaysMin = timelineItems.reduce((sum, item) => sum + (item.estimateDays?.min || 0), 0);
-  const totalDaysMax = timelineItems.reduce((sum, item) => sum + (item.estimateDays?.max || 0), 0);
+  // FIX: Normalize timeline access - handle both array and {items: [...]} formats
+  const rawTimeline = r.timeline;
+  const timelineItems: TimelinePlanItem[] = Array.isArray(rawTimeline) 
+    ? rawTimeline 
+    : (rawTimeline?.items || []);
   
-  // Get cost estimate
-  const totalCost = result.costs?.officialFeesInr || 0;
-  const practicalMin = result.costs?.practicalCostsInrRange?.min || 0;
-  const practicalMax = result.costs?.practicalCostsInrRange?.max || 0;
+  // Calculate total days from normalized timeline, fallback to steps prop
+  const totalDaysMin = timelineItems.length > 0 
+    ? timelineItems.reduce((sum: number, item: TimelinePlanItem) => sum + (item.estimateDays?.min || 0), 0)
+    : costs.reduce((sum, cost) => sum + (cost.amountINR > 0 ? 1 : 0), 0) * 7; // Rough estimate
+  const totalDaysMax = timelineItems.length > 0
+    ? timelineItems.reduce((sum: number, item: TimelinePlanItem) => sum + (item.estimateDays?.max || 0), 0)
+    : costs.reduce((sum, cost) => sum + (cost.amountINR > 0 ? 1 : 0), 0) * 14; // Rough estimate
   
-  // Get risk score
-  const riskScore = result.risks?.riskScore0to10 || 0;
-  const highRisks = risks.filter(r => r.severity === "high").length;
-  const mediumRisks = risks.filter(r => r.severity === "medium").length;
+  // FIX: Normalize cost access - handle demo format (summary.officialTotal) and full format (officialFeesInr)
+  const rawCosts = r.costs || {};
+  const totalCost = Number(
+    rawCosts?.officialFeesInr || 
+    rawCosts?.summary?.officialTotal || 
+    rawCosts?.totalOfficialFees || 
+    0
+  );
+  const practicalCostsRange = rawCosts?.practicalCostsInrRange || rawCosts?.summary?.practicalRange;
+  const practicalMin = Number(practicalCostsRange?.min || rawCosts?.practicalMin || 0);
+  const practicalMax = Number(practicalCostsRange?.max || rawCosts?.practicalMax || 0);
+  
+  // Get risk score - handle both overallScore (demo) and riskScore0to10 (full)
+  const riskScore = result.risks?.riskScore0to10 || r.risks?.overallScore || r.risks?.riskScore || 0;
+  const highRisks = risks.filter(risk => risk.severity === "high").length;
+  const mediumRisks = risks.filter(risk => risk.severity === "medium").length;
 
   // Get expert advice if available
   const expertAdvice = result.outputs?.expertAdvice as { 
@@ -67,14 +135,66 @@ export function FinalReport({
   const perspectives = expertAdvice?.perspectives || [];
   const recommendation = expertAdvice?.recommendation;
 
-  // Tabs configuration
-  const tabs = [
-    { id: "overview" as const, label: "Overview", icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" },
-    { id: "timeline" as const, label: "Timeline", icon: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z", count: steps.length },
-    { id: "costs" as const, label: "Costs", icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z", count: costs.length },
-    { id: "documents" as const, label: "Documents", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z", count: documents.length },
-    { id: "risks" as const, label: "Risks", icon: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z", count: risks.length },
-    { id: "experts" as const, label: "Expert Advice", icon: "M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z", count: perspectives.length },
+  // Get generated drafts (RTI, Grievance, Appeal)
+  const drafts: GeneratedDraft[] = result.drafts || [];
+  
+  // Get state comparison data
+  const stateComparison = result.outputs?.stateComparison as StateComparisonData | undefined;
+  
+  // Get what-if scenarios
+  const whatIfData = result.outputs?.whatIf as WhatIfData | undefined;
+  
+  // Get visit plan
+  const visitPlanRaw = result.outputs?.visitPlan;
+  const visitPlan: VisitPlanData | undefined = typeof visitPlanRaw === 'string' 
+    ? { visits: [{ office: "See details", purpose: visitPlanRaw }] }
+    : visitPlanRaw as VisitPlanData | undefined;
+
+  // Get dependency graph
+  const dependencyGraph: DependencyGraph | undefined = result.dependencyGraph;
+
+  // Get reminders
+  const reminders: string[] = result.outputs?.reminders || [];
+
+  // Copy draft to clipboard
+  const copyDraft = async (draft: GeneratedDraft) => {
+    try {
+      await navigator.clipboard.writeText(draft.body);
+      setCopiedDraft(draft.kind);
+      setTimeout(() => setCopiedDraft(null), 2000);
+    } catch (e) {
+      console.error("Failed to copy:", e);
+    }
+  };
+
+  // Download draft as text file
+  const downloadDraft = (draft: GeneratedDraft) => {
+    const blob = new Blob([draft.body], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${draft.kind.toLowerCase()}-draft.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // Tabs configuration - include new tabs for hidden agent outputs
+  const tabs: Array<{ id: TabId; label: string; icon: string; count?: number; highlight?: boolean }> = [
+    { id: "overview", label: "Overview", icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" },
+    { id: "timeline", label: "Timeline", icon: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z", count: steps.length },
+    { id: "costs", label: "Costs", icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z", count: costs.length },
+    { id: "documents", label: "Documents", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z", count: documents.length },
+    { id: "risks", label: "Risks", icon: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z", count: risks.length },
+    { id: "experts", label: "Experts", icon: "M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z", count: perspectives.length },
+    // NEW TABS for previously hidden agent outputs
+    { id: "drafts", label: "Drafts", icon: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z", count: drafts.length, highlight: drafts.length > 0 },
+    { id: "comparison", label: "Compare States", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z", count: stateComparison?.states?.length },
+    { id: "whatif", label: "What-If", icon: "M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z", count: whatIfData?.scenarios?.length },
+    { id: "visits", label: "Visit Plan", icon: "M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z M15 11a3 3 0 11-6 0 3 3 0 016 0z", count: visitPlan?.visits?.length },
+    { id: "dependencies", label: "Dependencies", icon: "M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5", count: dependencyGraph?.nodes?.length },
+    { id: "reminders", label: "Reminders", icon: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9", count: reminders.length },
   ];
 
   return (
@@ -584,6 +704,482 @@ export function FinalReport({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" />
                 </svg>
                 <p>No expert perspectives available</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Drafts Tab - RTI, Grievance, Appeal */}
+        {activeTab === "drafts" && (
+          <div className="space-y-4">
+            {drafts.length > 0 ? (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="font-semibold text-lg">Generated Drafts</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Ready-to-use RTI, Grievance, and Appeal documents
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  {drafts.map((draft, idx) => (
+                    <div key={idx} className={`rounded-lg border-2 p-4 ${
+                      draft.kind === "RTI" ? "border-info/30 bg-info/5" :
+                      draft.kind === "GRIEVANCE" ? "border-warning/30 bg-warning/5" :
+                      "border-primary/30 bg-primary/5"
+                    }`}>
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+                            draft.kind === "RTI" ? "bg-info text-info-foreground" :
+                            draft.kind === "GRIEVANCE" ? "bg-warning text-warning-foreground" :
+                            "bg-primary text-primary-foreground"
+                          }`}>
+                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <p className="font-semibold">{draft.title || `${draft.kind} Draft`}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {draft.kind === "RTI" ? "Right to Information Application" :
+                               draft.kind === "GRIEVANCE" ? "Formal Complaint Letter" :
+                               "Appeal Document"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => copyDraft(draft)}
+                          >
+                            {copiedDraft === draft.kind ? (
+                              <>
+                                <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                                Copied!
+                              </>
+                            ) : (
+                              <>
+                                <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                                Copy
+                              </>
+                            )}
+                          </Button>
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => downloadDraft(draft)}
+                          >
+                            <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            Download
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="rounded-lg border border-border bg-card p-4 font-mono text-sm whitespace-pre-wrap max-h-64 overflow-y-auto">
+                        {draft.body}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <svg className="h-12 w-12 mx-auto mb-3 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                <p>No drafts generated for this query</p>
+                <p className="text-xs mt-2">RTI and Grievance drafts are generated for stuck applications</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* State Comparison Tab */}
+        {activeTab === "comparison" && (
+          <div className="space-y-4">
+            {stateComparison?.states && stateComparison.states.length > 0 ? (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="font-semibold text-lg">State-by-State Comparison</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Compare requirements across different states
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Comparison Table */}
+                <div className="rounded-lg border border-border overflow-hidden">
+                  <table className="w-full">
+                    <thead className="bg-muted/50">
+                      <tr>
+                        <th className="text-left p-3 text-sm font-medium text-muted-foreground">State</th>
+                        <th className="text-center p-3 text-sm font-medium text-muted-foreground">Timeline</th>
+                        <th className="text-center p-3 text-sm font-medium text-muted-foreground">Cost</th>
+                        <th className="text-center p-3 text-sm font-medium text-muted-foreground">Complexity</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stateComparison.states.map((state, idx) => (
+                        <tr key={idx} className={idx % 2 === 0 ? "bg-card" : "bg-muted/20"}>
+                          <td className="p-3">
+                            <p className="font-medium">{state.state}</p>
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className="text-info font-medium">
+                              {state.totalDays.min}-{state.totalDays.max} days
+                            </span>
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className="text-success font-medium">
+                              ₹{state.totalCost.toLocaleString("en-IN")}
+                            </span>
+                          </td>
+                          <td className="p-3 text-center">
+                            <div className="flex justify-center gap-0.5">
+                              {Array.from({ length: 5 }).map((_, i) => (
+                                <svg 
+                                  key={i} 
+                                  className={`h-4 w-4 ${i < state.complexity ? "text-warning" : "text-muted"}`} 
+                                  fill={i < state.complexity ? "currentColor" : "none"} 
+                                  viewBox="0 0 24 24" 
+                                  stroke="currentColor" 
+                                  strokeWidth={2}
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                                </svg>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* State Details */}
+                <div className="grid gap-4 md:grid-cols-2">
+                  {stateComparison.states.map((state, idx) => (
+                    <div key={idx} className="rounded-lg border border-border bg-card p-4">
+                      <h4 className="font-semibold mb-2">{state.state}</h4>
+                      {state.advantages && state.advantages.length > 0 && (
+                        <div className="mb-2">
+                          <p className="text-xs text-success font-medium mb-1">Advantages:</p>
+                          <ul className="text-sm text-muted-foreground space-y-1">
+                            {state.advantages.map((adv, i) => (
+                              <li key={i} className="flex items-start gap-1">
+                                <span className="text-success">+</span> {adv}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {state.disadvantages && state.disadvantages.length > 0 && (
+                        <div>
+                          <p className="text-xs text-destructive font-medium mb-1">Challenges:</p>
+                          <ul className="text-sm text-muted-foreground space-y-1">
+                            {state.disadvantages.map((dis, i) => (
+                              <li key={i} className="flex items-start gap-1">
+                                <span className="text-destructive">-</span> {dis}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Recommendation */}
+                {stateComparison.recommendation && (
+                  <div className="rounded-lg border-2 border-primary/30 bg-primary/5 p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-primary">Recommendation</p>
+                        <p className="mt-1 text-sm text-foreground leading-relaxed">{stateComparison.recommendation}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <svg className="h-12 w-12 mx-auto mb-3 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                <p>No state comparison data available</p>
+                <p className="text-xs mt-2">State comparison is generated for queries across multiple states</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* What-If Tab */}
+        {activeTab === "whatif" && (
+          <div className="space-y-4">
+            {whatIfData?.scenarios && whatIfData.scenarios.length > 0 ? (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="font-semibold text-lg">What-If Scenarios</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Potential scenarios and how to handle them
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  {whatIfData.scenarios.map((scenario, idx) => (
+                    <div key={idx} className="rounded-lg border-2 border-warning/30 bg-warning/5 p-4">
+                      <div className="flex items-start gap-3 mb-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-warning text-warning-foreground">
+                          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="font-semibold">{scenario.scenario}</p>
+                            {scenario.probability && (
+                              <Badge variant="outline" className="text-xs">
+                                {Math.round(scenario.probability * 100)}% chance
+                              </Badge>
+                            )}
+                          </div>
+                          {scenario.impact && (
+                            <p className="text-sm text-muted-foreground mb-2">
+                              <span className="font-medium">Impact:</span> {scenario.impact}
+                            </p>
+                          )}
+                          {scenario.mitigation && (
+                            <p className="text-sm text-foreground">
+                              <span className="font-medium text-success">Mitigation:</span> {scenario.mitigation}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Possible Outcomes */}
+                      {scenario.outcomes && scenario.outcomes.length > 0 && (
+                        <div className="ml-13 mt-3 pl-4 border-l-2 border-warning/30 space-y-2">
+                          <p className="text-xs font-medium text-muted-foreground">Possible Outcomes:</p>
+                          {scenario.outcomes.map((outcome, oidx) => (
+                            <div key={oidx} className="flex items-start gap-2 text-sm">
+                              <span className="text-warning">→</span>
+                              <div>
+                                <span className="font-medium">{outcome.outcome}</span>
+                                {outcome.probability && (
+                                  <span className="text-muted-foreground ml-1">({Math.round(outcome.probability * 100)}%)</span>
+                                )}
+                                {outcome.action && (
+                                  <p className="text-xs text-muted-foreground">Action: {outcome.action}</p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* What-If Recommendation */}
+                {whatIfData.recommendation && (
+                  <div className="rounded-lg border-2 border-primary/30 bg-primary/5 p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-primary">Best Strategy</p>
+                        <p className="mt-1 text-sm text-foreground leading-relaxed">{whatIfData.recommendation}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <svg className="h-12 w-12 mx-auto mb-3 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p>No what-if scenarios generated</p>
+                <p className="text-xs mt-2">Scenarios help you prepare for potential obstacles</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Visit Plan Tab */}
+        {activeTab === "visits" && (
+          <div className="space-y-4">
+            {visitPlan?.visits && visitPlan.visits.length > 0 ? (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="font-semibold text-lg">Optimized Visit Plan</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Your planned office visits in optimal order
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  {visitPlan.visits.map((visit, idx) => (
+                    <div key={idx} className="flex gap-4">
+                      <div className="flex flex-col items-center">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-primary bg-primary/10 text-primary font-semibold">
+                          {idx + 1}
+                        </div>
+                        {idx < visitPlan.visits!.length - 1 && (
+                          <div className="w-0.5 h-full min-h-[40px] bg-border" />
+                        )}
+                      </div>
+                      <div className="flex-1 pb-4">
+                        <div className="rounded-lg border border-border bg-card p-4">
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <div>
+                              <p className="font-medium">{visit.office}</p>
+                              {visit.time && (
+                                <p className="text-sm text-primary">{visit.time}</p>
+                              )}
+                            </div>
+                            <Badge variant="outline">{visit.purpose}</Badge>
+                          </div>
+                          {visit.documentsNeeded && visit.documentsNeeded.length > 0 && (
+                            <div className="mb-2">
+                              <p className="text-xs text-muted-foreground mb-1">Documents to carry:</p>
+                              <div className="flex flex-wrap gap-1">
+                                {visit.documentsNeeded.map((doc, didx) => (
+                                  <Badge key={didx} variant="secondary" className="text-xs">
+                                    {doc}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {visit.tips && visit.tips.length > 0 && (
+                            <div className="border-t border-border pt-2 mt-2">
+                              <p className="text-xs text-muted-foreground mb-1">Tips:</p>
+                              <ul className="text-sm text-foreground space-y-1">
+                                {visit.tips.map((tip, tidx) => (
+                                  <li key={tidx} className="flex items-start gap-1">
+                                    <span className="text-info">•</span> {tip}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Optimization Tips */}
+                {visitPlan.optimizationTips && visitPlan.optimizationTips.length > 0 && (
+                  <div className="rounded-lg border border-info/30 bg-info/5 p-4">
+                    <p className="text-sm font-semibold text-info mb-2">Time-Saving Tips</p>
+                    <ul className="space-y-2">
+                      {visitPlan.optimizationTips.map((tip, idx) => (
+                        <li key={idx} className="flex items-start gap-2 text-sm text-foreground">
+                          <svg className="h-4 w-4 text-info flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          {tip}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <svg className="h-12 w-12 mx-auto mb-3 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <p>No visit plan generated</p>
+                <p className="text-xs mt-2">Visit plans help you optimize your government office trips</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Dependencies Tab */}
+        {activeTab === "dependencies" && (
+          <div className="space-y-4">
+            <ProcessDependencyGraph dependencyGraph={dependencyGraph} />
+          </div>
+        )}
+
+        {/* Reminders Tab */}
+        {activeTab === "reminders" && (
+          <div className="space-y-4">
+            {reminders.length > 0 ? (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="font-semibold text-lg">Follow-up Reminders</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Important deadlines and follow-ups to track
+                    </p>
+                  </div>
+                  <Badge variant="info">{reminders.length} reminders</Badge>
+                </div>
+                <div className="space-y-3">
+                  {reminders.map((reminder, idx) => (
+                    <div
+                      key={idx}
+                      className="rounded-lg border border-info/30 bg-info/5 p-4 flex items-start gap-3"
+                    >
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-info text-info-foreground flex-shrink-0">
+                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm text-foreground">{reminder}</p>
+                      </div>
+                      <Badge variant="outline" className="text-xs flex-shrink-0">
+                        #{idx + 1}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Export Reminders */}
+                <div className="rounded-lg border border-border bg-muted/30 p-4">
+                  <p className="text-sm font-semibold mb-2">Pro Tip</p>
+                  <p className="text-sm text-muted-foreground">
+                    Set calendar reminders for each deadline. Government offices often have strict timelines 
+                    and missing a follow-up window can reset your entire process.
+                  </p>
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <div className="flex h-16 w-16 mx-auto mb-4 items-center justify-center rounded-full bg-muted">
+                  <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                  </svg>
+                </div>
+                <p className="font-medium mb-1">No Reminders Set</p>
+                <p className="text-sm max-w-xs mx-auto">
+                  Reminders will be generated based on your timeline and required follow-ups
+                </p>
               </div>
             )}
           </div>

@@ -1,23 +1,24 @@
 import { cn } from "@/lib/utils";
 import type { Tier } from "@/types";
 
+// Simplified, minimal color system - subtle variations of primary
 const tierClasses: Record<Tier, string> = {
-  intake: "bg-info text-info-foreground",
-  research: "bg-accent text-accent-foreground",
-  strategy: "bg-warning text-warning-foreground",
-  document: "bg-success text-success-foreground",
-  execution: "bg-primary text-primary-foreground",
-  intelligence: "bg-secondary text-secondary-foreground",
+  intake: "bg-primary/90 text-primary-foreground",
+  research: "bg-primary/75 text-primary-foreground",
+  strategy: "bg-primary/60 text-primary-foreground",
+  document: "bg-primary/45 text-foreground",
+  execution: "bg-primary/30 text-foreground",
+  intelligence: "bg-primary/15 text-foreground",
 };
 
-// Generate consistent colors for each tier
+// Subtle gradient overlays
 const tierColors: Record<Tier, string> = {
-  intake: "from-info/20 to-info/5",
-  research: "from-accent/20 to-accent/5",
-  strategy: "from-warning/20 to-warning/5",
-  document: "from-success/20 to-success/5",
-  execution: "from-primary/20 to-primary/5",
-  intelligence: "from-secondary/20 to-secondary/5",
+  intake: "from-primary/10 to-transparent",
+  research: "from-primary/8 to-transparent",
+  strategy: "from-primary/6 to-transparent",
+  document: "from-primary/4 to-transparent",
+  execution: "from-primary/3 to-transparent",
+  intelligence: "from-primary/2 to-transparent",
 };
 
 export function AgentAvatar({
