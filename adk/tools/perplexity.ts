@@ -5,6 +5,51 @@ import { Type } from "@google/genai";
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const cache = new Map<string, { result: VerificationResult; timestamp: number }>();
 
+// Track API call statistics
+let apiCallStats = {
+  totalCalls: 0,
+  successfulCalls: 0,
+  failedCalls: 0,
+  cacheHits: 0,
+  fallbackCalls: 0,
+};
+
+// Log with timestamp and category for easy debugging
+function logPerplexity(level: 'INFO' | 'WARN' | 'ERROR' | 'SUCCESS', message: string, data?: unknown) {
+  const timestamp = new Date().toISOString();
+  const prefix = `[PERPLEXITY ${level}] ${timestamp}`;
+  
+  if (data) {
+    console.log(`${prefix}: ${message}`, JSON.stringify(data, null, 2));
+  } else {
+    console.log(`${prefix}: ${message}`);
+  }
+}
+
+// Check API key status on module load
+const apiKeyStatus = (() => {
+  const key = process.env.PERPLEXITY_API_KEY;
+  if (!key) {
+    logPerplexity('WARN', 'PERPLEXITY_API_KEY not configured - will use static knowledge base only');
+    return 'missing';
+  }
+  if (key === 'your_perplexity_api_key_here' || key.length < 20) {
+    logPerplexity('WARN', 'PERPLEXITY_API_KEY appears to be a placeholder or invalid');
+    return 'invalid';
+  }
+  logPerplexity('SUCCESS', 'PERPLEXITY_API_KEY configured - live verification enabled');
+  return 'configured';
+})();
+
+// Export function to check API status
+export function getPerplexityStatus() {
+  return {
+    isConfigured: apiKeyStatus === 'configured',
+    status: apiKeyStatus,
+    stats: { ...apiCallStats },
+  };
+}
+
 export interface VerificationResult {
   verified: boolean;
   value?: string;
@@ -28,9 +73,14 @@ function getFromCache(key: string): VerificationResult | null {
   
   if (Date.now() - cached.timestamp > CACHE_TTL_MS) {
     cache.delete(key);
+    logPerplexity('INFO', `Cache expired for key: ${key.substring(0, 50)}...`);
     return null;
   }
   
+  apiCallStats.cacheHits++;
+  logPerplexity('INFO', `Cache HIT for: ${key.substring(0, 50)}...`, {
+    cacheAge: Math.round((Date.now() - cached.timestamp) / 1000 / 60) + ' minutes',
+  });
   return { ...cached.result, fromCache: true };
 }
 
@@ -39,9 +89,12 @@ function setCache(key: string, result: VerificationResult): void {
 }
 
 async function callPerplexityAPI(query: string, category: string): Promise<VerificationResult> {
+  apiCallStats.totalCalls++;
   const apiKey = process.env.PERPLEXITY_API_KEY;
   
-  if (!apiKey) {
+  if (!apiKey || apiKey === 'your_perplexity_api_key_here') {
+    apiCallStats.fallbackCalls++;
+    logPerplexity('WARN', `FALLBACK: No API key - using static data for: ${query.substring(0, 80)}...`);
     return {
       verified: false,
       confidence: 0.5,
@@ -50,6 +103,11 @@ async function callPerplexityAPI(query: string, category: string): Promise<Verif
       error: "Perplexity API key not configured - using static knowledge base",
     };
   }
+  
+  logPerplexity('INFO', `Making LIVE API call for category: ${category}`, {
+    query: query.substring(0, 100) + (query.length > 100 ? '...' : ''),
+    totalCallsSoFar: apiCallStats.totalCalls,
+  });
 
   const systemPrompt = `You are a verification agent for Indian government bureaucracy data. 
 You must verify information about government fees, timelines, licenses, and policies.
@@ -87,7 +145,11 @@ If you cannot verify with high confidence, set verified=false and explain in val
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Perplexity API error:", response.status, errorText);
+      apiCallStats.failedCalls++;
+      logPerplexity('ERROR', `API call FAILED with status ${response.status}`, {
+        error: errorText.substring(0, 200),
+        query: query.substring(0, 80),
+      });
       return {
         verified: false,
         confidence: 0.5,
@@ -128,6 +190,14 @@ If you cannot verify with high confidence, set verified=false and explain in val
       };
     }
 
+    apiCallStats.successfulCalls++;
+    logPerplexity('SUCCESS', `API call SUCCEEDED for: ${query.substring(0, 50)}...`, {
+      verified: parsed.verified,
+      confidence: parsed.confidence,
+      source: parsed.source,
+      value: parsed.value?.substring(0, 100),
+    });
+    
     return {
       verified: parsed.verified ?? false,
       value: parsed.value,
@@ -139,7 +209,11 @@ If you cannot verify with high confidence, set verified=false and explain in val
       originalQuery: query,
     };
   } catch (error) {
-    console.error("Perplexity API call failed:", error);
+    apiCallStats.failedCalls++;
+    logPerplexity('ERROR', `API request FAILED`, {
+      error: error instanceof Error ? error.message : String(error),
+      query: query.substring(0, 80),
+    });
     return {
       verified: false,
       confidence: 0.5,
@@ -352,7 +426,28 @@ export function getCacheStats() {
   };
 }
 
+// Export API stats for debugging
+export function getApiStats() {
+  return {
+    ...apiCallStats,
+    cacheSize: cache.size,
+    apiKeyStatus,
+    isPerplexityActive: apiKeyStatus === 'configured',
+  };
+}
+
 // Clear cache (for testing)
 export function clearCache() {
   cache.clear();
+}
+
+// Reset stats (for testing)
+export function resetStats() {
+  apiCallStats = {
+    totalCalls: 0,
+    successfulCalls: 0,
+    failedCalls: 0,
+    cacheHits: 0,
+    fallbackCalls: 0,
+  };
 }

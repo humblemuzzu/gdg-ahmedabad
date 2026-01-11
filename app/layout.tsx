@@ -46,15 +46,16 @@ const themeScript = `
     var theme = localStorage.getItem('bb-theme');
     var root = document.documentElement;
     
-    // Apply dark class for dark themes or default
-    if (!theme || theme === 'default' || theme === 'slate') {
+    // Apply dark class only for dark themes
+    if (theme === 'default' || theme === 'slate') {
       root.classList.add('dark');
     } else {
+      // Default to light theme
       root.classList.remove('dark');
     }
   } catch (e) {
-    // Default to dark if localStorage is not available
-    document.documentElement.classList.add('dark');
+    // Default to light if localStorage is not available
+    document.documentElement.classList.remove('dark');
   }
 })();
 `;
@@ -65,7 +66,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className="dark">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>

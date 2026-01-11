@@ -221,7 +221,7 @@ const THEME_STORAGE_KEY = "bb-theme";
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [activeTheme, setActiveTheme] = useState<ThemeKey>("default");
+  const [activeTheme, setActiveTheme] = useState<ThemeKey>("defaultLight");
   const [mounted, setMounted] = useState(false);
 
   // Apply theme to DOM
@@ -259,8 +259,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       setActiveTheme(savedTheme);
       applyThemeToDOM(savedTheme);
     } else {
-      // Apply default theme
-      applyThemeToDOM("default");
+      // Apply default light theme
+      applyThemeToDOM("defaultLight");
     }
     setMounted(true);
   }, [applyThemeToDOM]);

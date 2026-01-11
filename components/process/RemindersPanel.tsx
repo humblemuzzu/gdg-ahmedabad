@@ -481,7 +481,7 @@ export function RemindersPanel({ caseId, steps, agentReminders }: RemindersPanel
       )}
 
       {/* Agent Reminders (text-only from AI) */}
-      {agentReminders && agentReminders.length > 0 && (
+      {Array.isArray(agentReminders) && agentReminders.length > 0 && (
         <div className="bg-muted/30 rounded-2xl p-6">
           <p className="font-semibold mb-4">AI Suggested Follow-ups</p>
           <div className="space-y-3">

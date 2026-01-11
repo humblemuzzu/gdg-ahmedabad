@@ -8,12 +8,40 @@ import { jsonInstruction } from "../shared/instructions";
 // Check if Perplexity API is configured
 const hasPerplexityKey = !!process.env.PERPLEXITY_API_KEY;
 
-// Only add verification instructions if API key is available
+// Add verification instructions if API key is available
 const verificationPrompt = hasPerplexityKey ? `
 
-## LIVE POLICY VERIFICATION
-You have access to check_policy_changes tool. Use it for major licenses only.
-Include verification status in output when available.
+## LIVE POLICY CHANGE VERIFICATION
+**USE check_policy_changes TOOL** for relevant policy areas.
+
+SMART VERIFICATION RULES:
+1. Check for policy changes RELEVANT to the user's specific case:
+   - Their business type (cafe, restaurant, IT company, etc.)
+   - Their location (state-specific rules)
+   - Their scale (thresholds that might affect them)
+
+2. WHEN TO CHECK:
+   - Major licenses for their business type
+   - State-specific regulations for their location
+   - GST rules IF their turnover is near thresholds
+   - Recent government initiatives in their state
+
+3. HOW TO USE:
+   - check_policy_changes(topic, state, timeframe)
+   - topic = specific to USER'S business (not generic)
+   - state = user's actual state
+   - timeframe = "last 6 months" usually
+
+4. BE SELECTIVE:
+   - Don't check everything, check what MATTERS for this user
+   - A small cafe doesn't need export policy checks
+   - An IT company doesn't need food safety policy checks
+
+Example: For "cafe in Dhoraji, Gujarat" - check:
+- "Shop and Establishment Act changes in Gujarat"
+- "Food business regulations Gujarat 2024-2025"
+- "Municipal licensing Dhoraji"
+NOT unrelated policies like "FSSAI central license" for a small cafe.
 ` : "";
 
 const enhancedPrompt = `${PROMPTS.POLICY_SCOUT}${verificationPrompt}`;

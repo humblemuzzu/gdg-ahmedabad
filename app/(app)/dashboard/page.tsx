@@ -10,6 +10,7 @@ import { ProcessRiskAnalysis } from "@/components/process/ProcessRiskAnalysis";
 import { ProcessTimeline } from "@/components/process/ProcessTimeline";
 import { ProcessCostBreakdown } from "@/components/process/ProcessCostBreakdown";
 import { FinalReport } from "@/components/process/FinalReport";
+import { PerplexityStatus } from "@/components/ui/PerplexityStatus";
 import { useAnalysisContext } from "@/lib/context/analysis-context";
 
 export default function DashboardPage() {
@@ -19,9 +20,14 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-[calc(100vh-12rem)]">
+      {/* Perplexity Status Indicator - Top Right */}
+      <div className="flex justify-end mb-4">
+        <PerplexityStatus />
+      </div>
+
       {/* IDLE STATE - Clean, centered input */}
       {isIdle && (
-        <div className="flex items-center justify-center min-h-[calc(100vh-16rem)]">
+        <div className="flex items-center justify-center min-h-[calc(100vh-20rem)]">
           <ProcessInput />
         </div>
       )}
