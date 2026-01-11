@@ -49,6 +49,10 @@ steps:
       - '0'
       - '--max-instances'
       - '2'
+      - '--set-env-vars'
+      - 'NODE_ENV=production'
+      - '--set-secrets'
+      - 'GOOGLE_GENAI_API_KEY=GOOGLE_GENAI_API_KEY:latest'
 
 images:
   - 'gcr.io/$PROJECT_ID/bureaucracy-breaker:$COMMIT_SHA'

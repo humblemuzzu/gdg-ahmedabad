@@ -3,18 +3,6 @@ import { getCaseStore } from "../../../lib/storage";
 
 export const runtime = "nodejs";
 
-// CORS headers for cross-origin requests (Netlify frontend -> Cloud Run backend)
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Accept",
-};
-
-// Handle preflight requests
-export async function OPTIONS() {
-  return new Response(null, { status: 204, headers: corsHeaders });
-}
-
 function sseEncode(event: string, data: unknown): Uint8Array {
   const encoder = new TextEncoder();
   return encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
@@ -49,10 +37,10 @@ export async function POST(req: Request) {
       const stored = saveCase
         ? getCaseStore().create({ query, result: out.result, userId: out.userId, sessionId: out.sessionId })
         : null;
-      return Response.json({ ...out, caseId: stored?.id ?? null }, { headers: corsHeaders });
+      return Response.json({ ...out, caseId: stored?.id ?? null });
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : "Unknown error";
-      return Response.json({ error: message }, { status: 500, headers: corsHeaders });
+      return Response.json({ error: message }, { status: 500 });
     }
   }
 
@@ -111,11 +99,10 @@ export async function POST(req: Request) {
   });
 
   return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream; charset=utf-8",
-      "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
-      ...corsHeaders,
-    },
+     headers: {
+       "Content-Type": "text/event-stream; charset=utf-8",
+       "Cache-Control": "no-cache, no-transform",
+       Connection: "keep-alive",
+     },
   });
 }

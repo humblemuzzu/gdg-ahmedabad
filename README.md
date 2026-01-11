@@ -96,6 +96,14 @@ Open [http://localhost:3000](http://localhost:3000) to see the application.
 GOOGLE_GENAI_API_KEY=your_google_ai_api_key
 ```
 
+## Deployment (Google Cloud Run)
+
+This repo is deployable as a single Cloud Run service (frontend + Next.js API routes).
+
+- Create a Secret Manager secret named `GOOGLE_GENAI_API_KEY`
+- Deploy via Cloud Build: `gcloud builds submit --config cloudbuild.yaml .`
+- Or deploy from your machine: `./deploy-cloudrun.sh` (edit `PROJECT_ID` first)
+
 ## Project Structure
 
 ```

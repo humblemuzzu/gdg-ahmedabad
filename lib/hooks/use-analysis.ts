@@ -785,11 +785,7 @@ export function useAnalysis() {
     }
 
     try {
-      // Use Cloud Run backend directly to avoid Netlify proxy timeout
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "";
-      const apiUrl = backendUrl ? `${backendUrl}/api/analyze?stream=1` : "/api/analyze?stream=1";
-      
-      const response = await fetch(apiUrl, {
+      const response = await fetch("/api/analyze?stream=1", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
