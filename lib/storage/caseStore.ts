@@ -5,7 +5,7 @@
  * Falls back to in-memory storage when IndexedDB is unavailable.
  */
 
-import type { ProcessResult, AgentActivityStreamEvent } from "@/types";
+import type { ProcessResult, AgentActivityStreamEvent, ChatMessage } from "@/types";
 
 export type CaseStatus = "pending" | "processing" | "completed" | "failed";
 
@@ -38,18 +38,21 @@ export interface CaseAnalytics {
 }
 
 const DB_NAME = "bureaucracy_breaker";
-const DB_VERSION = 1;
+const DB_VERSION = 2; // Bumped for chat_history store
 const STORE_RECORDS = "case_records";
 const STORE_RESULTS = "case_results";
 const STORE_EVENTS = "case_events";
+const STORE_CHAT_HISTORY = "chat_history";
 
 const EVENT_LIMIT = 500;
+const CHAT_MESSAGE_LIMIT = 100; // Max messages per case
 
 // In-memory fallback
 const memoryStore = {
   records: new Map<string, CaseRecord>(),
   results: new Map<string, ProcessResult>(),
   events: new Map<string, AgentActivityStreamEvent[]>(),
+  chatHistory: new Map<string, ChatMessage[]>(),
 };
 
 function isBrowser() {
@@ -79,6 +82,9 @@ function openDb(): Promise<IDBDatabase | null> {
       }
       if (!db.objectStoreNames.contains(STORE_EVENTS)) {
         db.createObjectStore(STORE_EVENTS, { keyPath: "id" });
+      }
+      if (!db.objectStoreNames.contains(STORE_CHAT_HISTORY)) {
+        db.createObjectStore(STORE_CHAT_HISTORY, { keyPath: "id" });
       }
     };
     
@@ -430,6 +436,52 @@ export async function updateCaseStatus(caseId: string, status: CaseStatus): Prom
   });
 }
 
+// ============ Chat History API ============
+
+/**
+ * Save chat history for a case
+ */
+export async function saveChatHistory(caseId: string, messages: ChatMessage[]): Promise<void> {
+  const trimmed = messages.slice(-CHAT_MESSAGE_LIMIT);
+  memoryStore.chatHistory.set(caseId, trimmed);
+
+  await withStores([STORE_CHAT_HISTORY], "readwrite", async ({ [STORE_CHAT_HISTORY]: store }) => {
+    await requestToPromise(store.put({ id: caseId, messages: trimmed }));
+    return null;
+  });
+}
+
+/**
+ * Get chat history for a case
+ */
+export async function getChatHistory(caseId: string): Promise<ChatMessage[]> {
+  const memoryHistory = memoryStore.chatHistory.get(caseId);
+  if (memoryHistory) return memoryHistory;
+
+  const data = await withStores([STORE_CHAT_HISTORY], "readonly", async ({ [STORE_CHAT_HISTORY]: store }) => {
+    const result = await requestToPromise<{ id: string; messages: ChatMessage[] } | undefined>(
+      store.get(caseId)
+    );
+    return result?.messages || [];
+  });
+
+  const messages = data || [];
+  memoryStore.chatHistory.set(caseId, messages);
+  return messages;
+}
+
+/**
+ * Clear chat history for a case
+ */
+export async function clearChatHistory(caseId: string): Promise<void> {
+  memoryStore.chatHistory.delete(caseId);
+
+  await withStores([STORE_CHAT_HISTORY], "readwrite", async ({ [STORE_CHAT_HISTORY]: store }) => {
+    await requestToPromise(store.delete(caseId));
+    return null;
+  });
+}
+
 export default {
   saveCaseStart,
   appendCaseEvents,
@@ -443,4 +495,7 @@ export default {
   clearAllCases,
   getCaseAnalytics,
   updateCaseStatus,
+  saveChatHistory,
+  getChatHistory,
+  clearChatHistory,
 };

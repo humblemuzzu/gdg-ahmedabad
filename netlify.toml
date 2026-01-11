@@ -8,21 +8,39 @@
 # Use Next.js runtime for Netlify
 [build.environment]
   NODE_VERSION = "20"
+  # Backend URL for direct API calls (bypasses Netlify proxy timeout)
+  NEXT_PUBLIC_BACKEND_URL = "https://bureaucracy-breaker-514595252577.asia-south1.run.app"
 
 # Use the official Next.js plugin
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
-# Proxy all /api/* requests to Cloud Run backend
-# This ensures frontend calls go to your Cloud Run backend
+# Proxy non-streaming API requests (for shorter requests like health checks)
 [[redirects]]
-  from = "/api/*"
-  to = "https://bureaucracy-breaker-514595252577.asia-south1.run.app/api/:splat"
+  from = "/api/health"
+  to = "https://bureaucracy-breaker-514595252577.asia-south1.run.app/api/health"
   status = 200
   force = true
-  headers = {X-From = "netlify"}
 
-# Headers for CORS and SSE support
+[[redirects]]
+  from = "/api/cases/*"
+  to = "https://bureaucracy-breaker-514595252577.asia-south1.run.app/api/cases/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/kb/*"
+  to = "https://bureaucracy-breaker-514595252577.asia-south1.run.app/api/kb/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/perplexity-status"
+  to = "https://bureaucracy-breaker-514595252577.asia-south1.run.app/api/perplexity-status"
+  status = 200
+  force = true
+
+# Headers for security
 [[headers]]
   for = "/*"
   [headers.values]
