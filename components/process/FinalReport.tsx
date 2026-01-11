@@ -33,8 +33,46 @@ interface FinalReportProps {
 }
 
 interface ExpertPerspective {
-  role: string;
-  advice: string;
+  role?: string;
+  advice?: string | Record<string, unknown>;
+  // Rich format from API
+  expertId?: string;
+  title?: string;
+  emoji?: string;
+  persona?: {
+    name?: string;
+    experience?: string;
+    bias?: string;
+  };
+  focusAreas?: string[];
+  strengthOfThisAdvice?: string;
+  limitationOfThisAdvice?: string;
+}
+
+interface ExpertAdviceData {
+  perspectives?: ExpertPerspective[];
+  recommendation?: string;
+  summary?: {
+    keyDecision?: string;
+    expertsConsulted?: number;
+    consensusAreas?: string[];
+    disagreementAreas?: string[];
+    recommendedPath?: string;
+  };
+  consensusAnalysis?: {
+    allAgree?: Array<{ topic: string; reasoning: string }>;
+    disagreements?: Array<{
+      topic: string;
+      resolution?: string;
+      [key: string]: string | undefined;
+    }>;
+  };
+  synthesizedRecommendation?: {
+    forYourSituation?: string;
+    structureChoice?: { recommendation?: string; reasoning?: string; withMitigation?: string };
+    compliancePriority?: { phase1?: string[]; phase2?: string[]; phase3?: string[] };
+    finalWord?: string;
+  };
 }
 
 interface StateComparisonData {
@@ -207,12 +245,12 @@ export function FinalReport({
   const mediumRisks = effectiveRisks.filter(risk => risk.severity === "medium").length;
   const lowRisks = effectiveRisks.filter(risk => risk.severity === "low").length;
 
-  const expertAdvice = result.outputs?.expertAdvice as { 
-    perspectives?: ExpertPerspective[];
-    recommendation?: string;
-  } | undefined;
+  const expertAdvice = result.outputs?.expertAdvice as ExpertAdviceData | undefined;
   const perspectives = expertAdvice?.perspectives || [];
   const recommendation = expertAdvice?.recommendation;
+  const expertSummary = expertAdvice?.summary;
+  const consensusAnalysis = expertAdvice?.consensusAnalysis;
+  const synthesizedRecommendation = expertAdvice?.synthesizedRecommendation;
 
   const drafts: GeneratedDraft[] = result.drafts || [];
   const rawStateComparison = result.outputs?.stateComparison as StateComparisonData | undefined;
@@ -1144,49 +1182,336 @@ export function FinalReport({
           <div className="space-y-8">
             {perspectives.length > 0 ? (
               <>
+                {/* Header with Summary */}
                 <div>
-                  <h2 className="text-xl font-semibold">Expert Perspectives</h2>
-                  <p className="text-sm text-muted-foreground mt-1">Insights from domain specialists</p>
+                  <h2 className="text-xl font-semibold">Expert Advisory Board</h2>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Simulated perspectives from domain specialists to give you balanced guidance
+                  </p>
+                  {expertSummary?.keyDecision && (
+                    <div className="mt-4 bg-muted/30 rounded-xl p-4">
+                      <p className="text-sm">
+                        <span className="font-semibold text-primary">Key Decision: </span>
+                        {expertSummary.keyDecision}
+                      </p>
+                      {expertSummary.recommendedPath && (
+                        <p className="text-sm mt-2">
+                          <span className="font-semibold text-success">Recommended Path: </span>
+                          {expertSummary.recommendedPath}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
-                <div className="space-y-6">
-                  {perspectives.map((expert, idx) => (
-                    <div key={idx} className="bg-card rounded-2xl p-6 hover:shadow-sm transition-all">
-                      <div className="flex items-start gap-4">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary font-bold flex-shrink-0">
-                          {expert.role?.slice(0, 2).toUpperCase() || 'EX'}
+                {/* What All Experts Agree On */}
+                {consensusAnalysis?.allAgree && consensusAnalysis.allAgree.length > 0 && (
+                  <div className="bg-success/5 rounded-2xl p-6 border-l-4 border-success">
+                    <h3 className="font-semibold text-success flex items-center gap-2 mb-4">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      All Experts Agree On
+                    </h3>
+                    <div className="grid gap-3">
+                      {consensusAnalysis.allAgree.map((item, idx) => (
+                        <div key={idx} className="bg-background/50 rounded-lg p-3">
+                          <p className="font-medium text-foreground">{item.topic}</p>
+                          <p className="text-sm text-muted-foreground mt-1">{item.reasoning}</p>
                         </div>
-                        <div className="flex-1">
-                          <div>
-                            <p className="font-semibold text-foreground">{expert.role || 'Expert'}</p>
-                            <p className="text-xs text-muted-foreground">Expert Opinion</p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Expert Cards */}
+                <div className="space-y-6">
+                  <h3 className="font-semibold text-lg">Individual Expert Perspectives</h3>
+                  {perspectives.map((expert, idx) => {
+                    const expertData = expert as unknown as Record<string, unknown>;
+                    const title = (expertData.title || expert.role || 'Expert') as string;
+                    const emoji = (expertData.emoji || '👤') as string;
+                    const persona = expertData.persona as { name?: string; experience?: string; bias?: string } | undefined;
+                    const focusAreas = (expertData.focusAreas || expert.focusAreas) as string[] | undefined;
+                    const advice = expertData.advice as Record<string, unknown> | string | undefined;
+                    const strength = (expertData.strengthOfThisAdvice || expert.strengthOfThisAdvice) as string | undefined;
+                    const limitation = (expertData.limitationOfThisAdvice || expert.limitationOfThisAdvice) as string | undefined;
+                    
+                    // Get expert-specific colors
+                    const colorMap: Record<string, { bg: string; text: string; border: string }> = {
+                      ca: { bg: 'bg-blue-500/10', text: 'text-blue-500', border: 'border-blue-500/20' },
+                      lawyer: { bg: 'bg-purple-500/10', text: 'text-purple-500', border: 'border-purple-500/20' },
+                      businessOwner: { bg: 'bg-orange-500/10', text: 'text-orange-500', border: 'border-orange-500/20' },
+                      mentor: { bg: 'bg-green-500/10', text: 'text-green-500', border: 'border-green-500/20' },
+                    };
+                    const expertId = (expertData.expertId || 'default') as string;
+                    const colors = colorMap[expertId] || { bg: 'bg-primary/10', text: 'text-primary', border: 'border-primary/20' };
+
+                    return (
+                      <div key={idx} className="bg-card rounded-2xl overflow-hidden">
+                        {/* Expert Header */}
+                        <div className={`p-5 ${colors.bg} border-b ${colors.border}`}>
+                          <div className="flex items-start gap-4">
+                            <div className={`flex h-14 w-14 items-center justify-center rounded-xl ${colors.bg} text-2xl flex-shrink-0`}>
+                              {emoji}
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-start justify-between gap-4">
+                                <div>
+                                  <h4 className={`font-bold text-lg ${colors.text}`}>{title}</h4>
+                                  {persona?.name && (
+                                    <p className="text-sm text-foreground font-medium">{persona.name}</p>
+                                  )}
+                                  {persona?.experience && (
+                                    <p className="text-xs text-muted-foreground">{persona.experience}</p>
+                                  )}
+                                </div>
+                                {persona?.bias && (
+                                  <Badge variant="outline" className="text-xs shrink-0">
+                                    {persona.bias}
+                                  </Badge>
+                                )}
+                              </div>
+                              {focusAreas && focusAreas.length > 0 && (
+                                <div className="flex flex-wrap gap-2 mt-3">
+                                  {focusAreas.map((area, fidx) => (
+                                    <span key={fidx} className={`text-xs px-2 py-1 rounded-md ${colors.bg} ${colors.text}`}>
+                                      {area}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                          <div className="mt-4 text-sm text-foreground leading-relaxed">
-                            {typeof expert.advice === 'string' ? (
-                              <p>{expert.advice}</p>
-                            ) : typeof expert.advice === 'object' && expert.advice !== null ? (
-                              <div className="space-y-3">
-                                {Object.entries(expert.advice).map(([key, value]) => (
-                                  <div key={key} className="border-l-2 border-primary/20 pl-4">
-                                    <p className="font-medium text-foreground mb-1">
-                                      {key.replace(/^on/, '').replace(/([A-Z])/g, ' $1').trim()}
-                                    </p>
-                                    {typeof value === 'string' ? (
-                                      <p className="text-muted-foreground">{value}</p>
+                        </div>
+
+                        {/* Expert Advice Content */}
+                        <div className="p-5">
+                          {typeof advice === 'string' ? (
+                            <p className="text-sm text-foreground leading-relaxed">{advice}</p>
+                          ) : typeof advice === 'object' && advice !== null ? (
+                            <div className="space-y-4">
+                              {Object.entries(advice).map(([key, value]) => {
+                                const sectionTitle = key.replace(/^on/, '').replace(/([A-Z])/g, ' $1').trim();
+                                const valueData = value as Record<string, unknown> | string | string[] | undefined;
+                                
+                                return (
+                                  <div key={key} className="border-l-2 border-border pl-4">
+                                    <p className={`font-semibold text-sm mb-2 ${colors.text}`}>{sectionTitle}</p>
+                                    {typeof valueData === 'string' ? (
+                                      <p className="text-sm text-muted-foreground">{valueData}</p>
+                                    ) : Array.isArray(valueData) ? (
+                                      <ul className="text-sm text-muted-foreground space-y-1">
+                                        {valueData.map((item, i) => (
+                                          <li key={i} className="flex items-start gap-2">
+                                            <span className={colors.text}>•</span>
+                                            <span>{typeof item === 'string' ? item : JSON.stringify(item)}</span>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    ) : typeof valueData === 'object' && valueData !== null ? (
+                                      (() => {
+                                        const vd = valueData as Record<string, unknown>;
+                                        const rec = vd.recommendation ? String(vd.recommendation) : null;
+                                        const reasoning = vd.reasoning ? String(vd.reasoning) : null;
+                                        const warning = vd.warning ? String(vd.warning) : null;
+                                        const mustDo = Array.isArray(vd.mustDo) ? vd.mustDo as string[] : null;
+                                        const warnings = Array.isArray(vd.warnings) ? vd.warnings as string[] : null;
+                                        
+                                        return (
+                                          <div className="space-y-2">
+                                            {rec && (
+                                              <p className="text-sm">
+                                                <span className="font-medium">Recommendation: </span>
+                                                <span className="text-muted-foreground">{rec}</span>
+                                              </p>
+                                            )}
+                                            {reasoning && (
+                                              <p className="text-sm">
+                                                <span className="font-medium">Why: </span>
+                                                <span className="text-muted-foreground">{reasoning}</span>
+                                              </p>
+                                            )}
+                                            {warning && (
+                                              <p className="text-sm text-warning">
+                                                <span className="font-medium">Warning: </span>
+                                                {warning}
+                                              </p>
+                                            )}
+                                            {mustDo && mustDo.length > 0 && (
+                                              <div className="mt-2">
+                                                <p className="text-xs font-semibold text-success uppercase">Must Do:</p>
+                                                <ul className="text-sm text-muted-foreground mt-1">
+                                                  {mustDo.map((item, i) => (
+                                                    <li key={i} className="flex items-start gap-2">
+                                                      <span className="text-success">✓</span>
+                                                      <span>{item}</span>
+                                                    </li>
+                                                  ))}
+                                                </ul>
+                                              </div>
+                                            )}
+                                            {warnings && warnings.length > 0 && (
+                                              <div className="mt-2 bg-warning/5 rounded-lg p-3">
+                                                <p className="text-xs font-semibold text-warning uppercase">Warnings:</p>
+                                                <ul className="text-sm text-muted-foreground mt-1">
+                                                  {warnings.map((item, i) => (
+                                                    <li key={i} className="flex items-start gap-2">
+                                                      <span className="text-warning">⚠</span>
+                                                      <span>{item}</span>
+                                                    </li>
+                                                  ))}
+                                                </ul>
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })()
                                     ) : null}
                                   </div>
-                                ))}
-                              </div>
-                            ) : null}
-                          </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground italic">No specific advice provided</p>
+                          )}
+
+                          {/* Strength and Limitation */}
+                          {(strength || limitation) && (
+                            <div className="mt-4 pt-4 border-t border-border/50 grid grid-cols-2 gap-4">
+                              {strength && (
+                                <div className="bg-success/5 rounded-lg p-3">
+                                  <p className="text-xs font-semibold text-success uppercase mb-1">Strength</p>
+                                  <p className="text-xs text-muted-foreground">{strength}</p>
+                                </div>
+                              )}
+                              {limitation && (
+                                <div className="bg-warning/5 rounded-lg p-3">
+                                  <p className="text-xs font-semibold text-warning uppercase mb-1">Limitation</p>
+                                  <p className="text-xs text-muted-foreground">{limitation}</p>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
-                {/* Combined Recommendation */}
-                {recommendation && (
+                {/* Where Experts Disagree */}
+                {consensusAnalysis?.disagreements && consensusAnalysis.disagreements.length > 0 && (
+                  <div className="bg-warning/5 rounded-2xl p-6 border-l-4 border-warning">
+                    <h3 className="font-semibold text-warning flex items-center gap-2 mb-4">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Where Experts Disagree
+                    </h3>
+                    <div className="space-y-4">
+                      {consensusAnalysis.disagreements.map((item, idx) => (
+                        <div key={idx} className="bg-background/50 rounded-lg p-4">
+                          <p className="font-medium text-foreground mb-2">{item.topic}</p>
+                          <div className="grid gap-2 text-sm">
+                            {Object.entries(item).filter(([k]) => k !== 'topic' && k !== 'resolution').map(([expert, position]) => (
+                              <p key={expert} className="text-muted-foreground">
+                                <span className="font-medium capitalize">{expert.replace('Position', '')}: </span>
+                                {String(position)}
+                              </p>
+                            ))}
+                          </div>
+                          {item.resolution && (
+                            <div className="mt-3 pt-3 border-t border-border/50">
+                              <p className="text-sm">
+                                <span className="font-semibold text-success">Resolution: </span>
+                                {item.resolution}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Synthesized Recommendation */}
+                {synthesizedRecommendation && (
+                  <div className="bg-primary/5 rounded-2xl p-6 border-l-4 border-primary">
+                    <h3 className="font-semibold text-primary flex items-center gap-2 mb-4 text-lg">
+                      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                      </svg>
+                      Synthesized Recommendation
+                    </h3>
+                    
+                    {synthesizedRecommendation.forYourSituation && (
+                      <p className="text-sm text-muted-foreground mb-4">
+                        For your situation: <span className="font-medium text-foreground">{synthesizedRecommendation.forYourSituation}</span>
+                      </p>
+                    )}
+
+                    {synthesizedRecommendation.structureChoice && (
+                      <div className="bg-background/50 rounded-lg p-4 mb-4">
+                        <p className="font-semibold text-foreground">{synthesizedRecommendation.structureChoice.recommendation}</p>
+                        {synthesizedRecommendation.structureChoice.reasoning && (
+                          <p className="text-sm text-muted-foreground mt-1">{synthesizedRecommendation.structureChoice.reasoning}</p>
+                        )}
+                        {synthesizedRecommendation.structureChoice.withMitigation && (
+                          <p className="text-sm text-success mt-2">
+                            <span className="font-medium">Mitigation: </span>
+                            {synthesizedRecommendation.structureChoice.withMitigation}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {synthesizedRecommendation.compliancePriority && (
+                      <div className="grid md:grid-cols-3 gap-3 mb-4">
+                        {synthesizedRecommendation.compliancePriority.phase1 && (
+                          <div className="bg-success/10 rounded-lg p-3">
+                            <p className="text-xs font-semibold text-success uppercase mb-2">Phase 1 (Critical)</p>
+                            <ul className="text-sm space-y-1">
+                              {synthesizedRecommendation.compliancePriority.phase1.map((item, i) => (
+                                <li key={i}>{item}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {synthesizedRecommendation.compliancePriority.phase2 && (
+                          <div className="bg-info/10 rounded-lg p-3">
+                            <p className="text-xs font-semibold text-info uppercase mb-2">Phase 2 (Important)</p>
+                            <ul className="text-sm space-y-1">
+                              {synthesizedRecommendation.compliancePriority.phase2.map((item, i) => (
+                                <li key={i}>{item}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {synthesizedRecommendation.compliancePriority.phase3 && (
+                          <div className="bg-muted/30 rounded-lg p-3">
+                            <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Phase 3 (Later)</p>
+                            <ul className="text-sm space-y-1">
+                              {synthesizedRecommendation.compliancePriority.phase3.map((item, i) => (
+                                <li key={i}>{item}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {synthesizedRecommendation.finalWord && (
+                      <div className="bg-primary/10 rounded-lg p-4">
+                        <p className="text-sm font-medium text-foreground leading-relaxed">
+                          {synthesizedRecommendation.finalWord}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Fallback Combined Recommendation */}
+                {!synthesizedRecommendation && recommendation && (
                   <div className="bg-primary/5 rounded-2xl p-6 border-l-4 border-primary">
                     <div className="flex items-start gap-4">
                       <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground flex-shrink-0">
