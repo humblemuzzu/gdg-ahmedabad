@@ -167,6 +167,99 @@ function safeJsonParse(value: unknown): unknown {
   return value;
 }
 
+// Normalize dependency graph from agent format to component format
+function normalizeDependencyGraph(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object") return raw;
+  
+  const data = raw as Record<string, unknown>;
+  
+  // Handle nodes - ensure proper format
+  let nodes = data.nodes;
+  if (!Array.isArray(nodes)) nodes = [];
+  
+  // Normalize nodes to expected format
+  const normalizedNodes = (nodes as unknown[]).map((node: unknown) => {
+    if (!node || typeof node !== "object") return null;
+    const n = node as Record<string, unknown>;
+    return {
+      id: String(n.id || ""),
+      type: (n.type === "document" || n.type === "license" || n.type === "step") ? n.type : "step",
+      name: String(n.name || n.id || "Unknown"),
+      meta: n.meta || { 
+        category: n.category, 
+        timeToObtain: n.timeToObtain,
+        onCriticalPath: n.onCriticalPath,
+        priority: n.priority,
+        warning: n.warning
+      }
+    };
+  }).filter((n): n is NonNullable<typeof n> => n !== null && Boolean(n.id));
+  
+  // Handle edges - ensure proper format
+  let edges = data.edges;
+  if (!Array.isArray(edges)) edges = [];
+  
+  // Normalize edges to expected format
+  const normalizedEdges = (edges as unknown[]).map((edge: unknown) => {
+    if (!edge || typeof edge !== "object") return null;
+    const e = edge as Record<string, unknown>;
+    const edgeType = e.type;
+    return {
+      from: String(e.from || ""),
+      to: String(e.to || ""),
+      type: (edgeType === "requires" || edgeType === "enables" || edgeType === "blocks") 
+        ? edgeType 
+        : (edgeType === "recommended" ? "enables" : "requires")
+    };
+  }).filter((e): e is NonNullable<typeof e> => e !== null && Boolean(e.from) && Boolean(e.to));
+  
+  // Handle criticalPath - can be string[] or { path: string[] }
+  let criticalPath: string[] = [];
+  const rawCriticalPath = data.criticalPath;
+  if (Array.isArray(rawCriticalPath)) {
+    criticalPath = rawCriticalPath.map(String);
+  } else if (rawCriticalPath && typeof rawCriticalPath === "object") {
+    const cp = rawCriticalPath as Record<string, unknown>;
+    if (Array.isArray(cp.path)) {
+      criticalPath = cp.path.map(String);
+    }
+  }
+  
+  // Handle parallelGroups - ensure 2D array format
+  let parallelGroups: string[][] = [];
+  const rawParallelGroups = data.parallelGroups;
+  if (Array.isArray(rawParallelGroups)) {
+    parallelGroups = rawParallelGroups.map((group: unknown) => {
+      if (Array.isArray(group)) return group.map(String);
+      return [];
+    }).filter(g => g.length > 0);
+  }
+  
+  // If no nodes but edges exist, create placeholder nodes
+  if (normalizedNodes.length === 0 && normalizedEdges.length > 0) {
+    const nodeIds = new Set<string>();
+    normalizedEdges.forEach(e => {
+      nodeIds.add(e.from);
+      nodeIds.add(e.to);
+    });
+    nodeIds.forEach(id => {
+      normalizedNodes.push({
+        id,
+        type: "step",
+        name: id.replace(/_/g, ' ').replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+        meta: { placeholder: true }
+      });
+    });
+  }
+  
+  return {
+    nodes: normalizedNodes,
+    edges: normalizedEdges,
+    criticalPath,
+    parallelGroups
+  };
+}
+
 function mergeSessionStateIntoResult(state: Record<string, unknown>, result: unknown): unknown {
   if (!result || typeof result !== "object") return result;
 
@@ -175,7 +268,7 @@ function mergeSessionStateIntoResult(state: Record<string, unknown>, result: unk
 
   const get = (key: string) => safeJsonParse(state[key]);
 
-  const dependencyGraph = get("bb_dependencies");
+  const dependencyGraph = normalizeDependencyGraph(get("bb_dependencies"));
   if (!r.dependencyGraph && dependencyGraph) r.dependencyGraph = dependencyGraph;
 
   const documents = get("bb_documents");

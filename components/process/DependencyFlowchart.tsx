@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { DependencyGraph } from "@/types";
@@ -10,296 +10,269 @@ interface DependencyFlowchartProps {
   criticalPath?: string[];
 }
 
-interface LayoutNode {
-  id: string;
-  name: string;
-  type: string;
-  x: number;
-  y: number;
-  level: number;
-  isCritical: boolean;
-}
+// Layout constants
+const NODE_W = 180;
+const NODE_H = 60;
+const GAP_X = 280;
+const GAP_Y = 100;
+const MARGIN = 60;
 
-interface LayoutEdge {
-  from: string;
-  to: string;
-  type: string;
-  fromX: number;
-  fromY: number;
-  toX: number;
-  toY: number;
-}
-
-// Node dimensions
-const NODE_WIDTH = 180;
-const NODE_HEIGHT = 60;
-const LEVEL_GAP_X = 280;
-const NODE_GAP_Y = 100;
-const PADDING = 60;
-
-// Node type colors
-const NODE_COLORS: Record<string, { bg: string; border: string; text: string; fill: string }> = {
-  document: { bg: "bg-info/10", border: "border-info/30", text: "text-info", fill: "#3b82f6" },
-  license: { bg: "bg-success/10", border: "border-success/30", text: "text-success", fill: "#22c55e" },
-  step: { bg: "bg-primary/10", border: "border-primary/30", text: "text-primary", fill: "#8b5cf6" },
+// Colors
+const COLORS: Record<string, string> = {
+  document: "#3b82f6",
+  license: "#22c55e", 
+  step: "#8b5cf6",
 };
 
-// Edge type colors
 const EDGE_COLORS: Record<string, string> = {
   requires: "#f59e0b",
   enables: "#22c55e",
   blocks: "#ef4444",
 };
 
-// Calculate layout using topological sort with levels
-function calculateLayout(
-  nodes: DependencyGraph["nodes"],
-  edges: DependencyGraph["edges"],
-  criticalPath: string[] = []
-): { layoutNodes: LayoutNode[]; layoutEdges: LayoutEdge[]; width: number; height: number } {
-  if (!nodes || nodes.length === 0) {
-    return { layoutNodes: [], layoutEdges: [], width: 400, height: 300 };
-  }
-
-  // Build adjacency lists
-  const inDegree = new Map<string, number>();
-  const outEdges = new Map<string, string[]>();
-  const inEdges = new Map<string, string[]>();
-  
-  nodes.forEach(n => {
-    inDegree.set(n.id, 0);
-    outEdges.set(n.id, []);
-    inEdges.set(n.id, []);
-  });
-  
-  edges.forEach(e => {
-    inDegree.set(e.to, (inDegree.get(e.to) || 0) + 1);
-    outEdges.get(e.from)?.push(e.to);
-    inEdges.get(e.to)?.push(e.from);
-  });
-
-  // Assign levels using BFS (Kahn's algorithm variant)
-  const levels = new Map<string, number>();
-  const queue: string[] = [];
-  
-  // Start with nodes that have no dependencies
-  nodes.forEach(n => {
-    if ((inDegree.get(n.id) || 0) === 0) {
-      queue.push(n.id);
-      levels.set(n.id, 0);
-    }
-  });
-
-  // Process nodes level by level
-  while (queue.length > 0) {
-    const nodeId = queue.shift()!;
-    const currentLevel = levels.get(nodeId) || 0;
-    
-    outEdges.get(nodeId)?.forEach(toId => {
-      const newLevel = currentLevel + 1;
-      const existingLevel = levels.get(toId);
-      
-      if (existingLevel === undefined || newLevel > existingLevel) {
-        levels.set(toId, newLevel);
-      }
-      
-      const newInDegree = (inDegree.get(toId) || 1) - 1;
-      inDegree.set(toId, newInDegree);
-      
-      if (newInDegree === 0) {
-        queue.push(toId);
-      }
-    });
-  }
-
-  // Handle any remaining nodes (cycles or disconnected)
-  nodes.forEach(n => {
-    if (!levels.has(n.id)) {
-      levels.set(n.id, 0);
-    }
-  });
-
-  // Group nodes by level
-  const levelGroups = new Map<number, string[]>();
-  levels.forEach((level, nodeId) => {
-    if (!levelGroups.has(level)) {
-      levelGroups.set(level, []);
-    }
-    levelGroups.get(level)!.push(nodeId);
-  });
-
-  // Calculate positions
-  const nodeMap = new Map(nodes.map(n => [n.id, n]));
-  const criticalSet = new Set(Array.isArray(criticalPath) ? criticalPath : []);
-  const layoutNodes: LayoutNode[] = [];
-  
-  let maxLevel = 0;
-  let maxNodesInLevel = 0;
-  
-  levelGroups.forEach((nodeIds, level) => {
-    maxLevel = Math.max(maxLevel, level);
-    maxNodesInLevel = Math.max(maxNodesInLevel, nodeIds.length);
-    
-    nodeIds.forEach((nodeId, idx) => {
-      const node = nodeMap.get(nodeId);
-      if (node) {
-        layoutNodes.push({
-          id: node.id,
-          name: node.name,
-          type: node.type,
-          x: PADDING + level * LEVEL_GAP_X,
-          y: PADDING + idx * NODE_GAP_Y,
-          level,
-          isCritical: criticalSet.has(node.id),
-        });
-      }
-    });
-  });
-
-  // Create node position map for edges
-  const positionMap = new Map(layoutNodes.map(n => [n.id, { x: n.x, y: n.y }]));
-
-  // Calculate edges
-  const layoutEdges: LayoutEdge[] = edges.map(e => {
-    const fromPos = positionMap.get(e.from) || { x: 0, y: 0 };
-    const toPos = positionMap.get(e.to) || { x: 0, y: 0 };
-    
-    return {
-      from: e.from,
-      to: e.to,
-      type: e.type,
-      fromX: fromPos.x + NODE_WIDTH,
-      fromY: fromPos.y + NODE_HEIGHT / 2,
-      toX: toPos.x,
-      toY: toPos.y + NODE_HEIGHT / 2,
-    };
-  });
-
-  // Calculate canvas size
-  const width = Math.max(600, PADDING * 2 + (maxLevel + 1) * LEVEL_GAP_X);
-  const height = Math.max(400, PADDING * 2 + maxNodesInLevel * NODE_GAP_Y);
-
-  return { layoutNodes, layoutEdges, width, height };
+interface NodePos {
+  id: string;
+  name: string;
+  type: "document" | "license" | "step";
+  x: number;
+  y: number;
+  level: number;
+  isCritical: boolean;
 }
 
-// Generate curved path for edges
-function generateEdgePath(edge: LayoutEdge): string {
-  const dx = edge.toX - edge.fromX;
-  const controlOffset = Math.min(Math.abs(dx) * 0.4, 80);
-  
-  return `M ${edge.fromX} ${edge.fromY} 
-          C ${edge.fromX + controlOffset} ${edge.fromY}, 
-            ${edge.toX - controlOffset} ${edge.toY}, 
-            ${edge.toX} ${edge.toY}`;
+interface EdgePos {
+  id: string;
+  from: string;
+  to: string;
+  type: "requires" | "enables" | "blocks";
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  isCritical: boolean;
 }
 
 export function DependencyFlowchart({ dependencyGraph, criticalPath = [] }: DependencyFlowchartProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [hoveredNode, setHoveredNode] = useState<string | null>(null);
-  const [selectedNode, setSelectedNode] = useState<string | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [view, setView] = useState({ x: 0, y: 0, w: 1200, h: 600 });
+  const [dragging, setDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0, vx: 0, vy: 0 });
+  const [hovered, setHovered] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
 
-  // Calculate layout - ensure nodes and edges are arrays
-  const safeNodes = Array.isArray(dependencyGraph?.nodes) ? dependencyGraph.nodes : [];
-  const safeEdges = Array.isArray(dependencyGraph?.edges) ? dependencyGraph.edges : [];
-  const safeCriticalPath = Array.isArray(criticalPath) ? criticalPath : [];
-  
-  const { layoutNodes, layoutEdges, width, height } = useMemo(() => 
-    calculateLayout(safeNodes, safeEdges, safeCriticalPath),
-    [safeNodes, safeEdges, safeCriticalPath]
-  );
+  // Extract and validate data
+  const rawNodes = useMemo(() => {
+    const n = dependencyGraph?.nodes;
+    if (!Array.isArray(n)) return [];
+    return n.filter(x => x && typeof x.id === "string" && x.id.length > 0);
+  }, [dependencyGraph?.nodes]);
 
-  // Fit to container on mount
+  const rawEdges = useMemo(() => {
+    const e = dependencyGraph?.edges;
+    if (!Array.isArray(e)) return [];
+    return e.filter(x => x && typeof x.from === "string" && typeof x.to === "string");
+  }, [dependencyGraph?.edges]);
+
+  const criticalSet = useMemo(() => {
+    const c = Array.isArray(criticalPath) && criticalPath.length > 0 
+      ? criticalPath 
+      : (Array.isArray(dependencyGraph?.criticalPath) ? dependencyGraph.criticalPath : []);
+    return new Set(c);
+  }, [criticalPath, dependencyGraph?.criticalPath]);
+
+  // Calculate layout
+  const { nodes, edges, bounds } = useMemo(() => {
+    if (rawNodes.length === 0) {
+      return { nodes: [] as NodePos[], edges: [] as EdgePos[], bounds: { w: 800, h: 500 } };
+    }
+
+    const nodeSet = new Set(rawNodes.map(n => n.id));
+    const nodeMap = new Map(rawNodes.map(n => [n.id, n]));
+    
+    // Build dependency maps
+    const deps = new Map<string, string[]>();
+    rawNodes.forEach(n => deps.set(n.id, []));
+    
+    rawEdges.forEach(e => {
+      if (nodeSet.has(e.from) && nodeSet.has(e.to)) {
+        deps.get(e.to)?.push(e.from);
+      }
+    });
+
+    // Calculate levels using recursion with memoization
+    const levels = new Map<string, number>();
+    const calculating = new Set<string>();
+    
+    const getLevel = (id: string): number => {
+      if (levels.has(id)) return levels.get(id)!;
+      if (calculating.has(id)) return 0; // Cycle
+      
+      calculating.add(id);
+      const parents = deps.get(id) || [];
+      const level = parents.length === 0 ? 0 : Math.max(...parents.map(p => getLevel(p))) + 1;
+      levels.set(id, level);
+      calculating.delete(id);
+      return level;
+    };
+
+    rawNodes.forEach(n => getLevel(n.id));
+
+    // Group by level
+    const byLevel: string[][] = [];
+    let maxLevel = 0;
+    
+    levels.forEach((lvl, id) => {
+      maxLevel = Math.max(maxLevel, lvl);
+      while (byLevel.length <= lvl) byLevel.push([]);
+      byLevel[lvl].push(id);
+    });
+
+    // Calculate max nodes per level for vertical centering
+    const maxPerLevel = Math.max(1, ...byLevel.map(l => l.length));
+
+    // Position all nodes
+    const positioned: NodePos[] = [];
+    const posMap = new Map<string, { x: number; y: number }>();
+
+    byLevel.forEach((ids, lvl) => {
+      const colH = ids.length * GAP_Y;
+      const totalH = maxPerLevel * GAP_Y;
+      const offsetY = (totalH - colH) / 2;
+
+      ids.forEach((id, idx) => {
+        const n = nodeMap.get(id);
+        if (!n) return;
+
+        const x = MARGIN + lvl * GAP_X;
+        const y = MARGIN + offsetY + idx * GAP_Y;
+        
+        posMap.set(id, { x, y });
+        
+        const nodeType = n.type === "document" || n.type === "license" || n.type === "step" 
+          ? n.type : "step";
+        
+        positioned.push({
+          id: n.id,
+          name: String(n.name || n.id),
+          type: nodeType,
+          x, y,
+          level: lvl,
+          isCritical: criticalSet.has(n.id),
+        });
+      });
+    });
+
+    // Create edges
+    const edgeList: EdgePos[] = [];
+    rawEdges.forEach((e, i) => {
+      const from = posMap.get(e.from);
+      const to = posMap.get(e.to);
+      if (!from || !to) return;
+
+      const edgeType = e.type === "requires" || e.type === "enables" || e.type === "blocks"
+        ? e.type : "requires";
+
+      edgeList.push({
+        id: `edge-${i}`,
+        from: e.from,
+        to: e.to,
+        type: edgeType,
+        x1: from.x + NODE_W,
+        y1: from.y + NODE_H / 2,
+        x2: to.x,
+        y2: to.y + NODE_H / 2,
+        isCritical: criticalSet.has(e.from) && criticalSet.has(e.to),
+      });
+    });
+
+    const w = MARGIN * 2 + (maxLevel + 1) * GAP_X;
+    const h = MARGIN * 2 + maxPerLevel * GAP_Y;
+
+    return { nodes: positioned, edges: edgeList, bounds: { w, h } };
+  }, [rawNodes, rawEdges, criticalSet]);
+
+  // Initialize view to fit content
+  const resetView = useCallback(() => {
+    setView({ x: -30, y: -30, w: bounds.w + 60, h: bounds.h + 60 });
+  }, [bounds]);
+
+  // Reset view when bounds change - use useEffect for side effects
   useEffect(() => {
-    if (containerRef.current && width > 0 && height > 0) {
-      const containerWidth = containerRef.current.clientWidth;
-      const containerHeight = 500; // Fixed height
-      
-      const scaleX = (containerWidth - 40) / width;
-      const scaleY = (containerHeight - 40) / height;
-      const scale = Math.min(scaleX, scaleY, 1);
-      
-      setZoom(scale);
-      setPan({
-        x: (containerWidth - width * scale) / 2,
-        y: (containerHeight - height * scale) / 2,
-      });
+    if (bounds.w > 0 && bounds.h > 0) {
+      setView({ x: -30, y: -30, w: bounds.w + 60, h: bounds.h + 60 });
     }
-  }, [width, height]);
+  }, [bounds.w, bounds.h]);
 
-  // Zoom handlers
-  const handleZoomIn = useCallback(() => {
-    setZoom(z => Math.min(z * 1.2, 2));
+  // Zoom
+  const zoom = useCallback((factor: number) => {
+    setView(v => {
+      const cx = v.x + v.w / 2;
+      const cy = v.y + v.h / 2;
+      const nw = v.w / factor;
+      const nh = v.h / factor;
+      return { x: cx - nw / 2, y: cy - nh / 2, w: nw, h: nh };
+    });
   }, []);
-
-  const handleZoomOut = useCallback(() => {
-    setZoom(z => Math.max(z / 1.2, 0.3));
-  }, []);
-
-  const handleZoomReset = useCallback(() => {
-    if (containerRef.current) {
-      const containerWidth = containerRef.current.clientWidth;
-      const containerHeight = 500;
-      
-      const scaleX = (containerWidth - 40) / width;
-      const scaleY = (containerHeight - 40) / height;
-      const scale = Math.min(scaleX, scaleY, 1);
-      
-      setZoom(scale);
-      setPan({
-        x: (containerWidth - width * scale) / 2,
-        y: (containerHeight - height * scale) / 2,
-      });
-    }
-  }, [width, height]);
 
   // Pan handlers
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+  const onPointerDown = useCallback((e: React.PointerEvent) => {
     if (e.button === 0) {
-      setIsDragging(true);
-      setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+      setDragging(true);
+      setDragStart({ x: e.clientX, y: e.clientY, vx: view.x, vy: view.y });
+      (e.target as Element).setPointerCapture(e.pointerId);
     }
-  }, [pan]);
+  }, [view]);
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (isDragging) {
-      setPan({
-        x: e.clientX - dragStart.x,
-        y: e.clientY - dragStart.y,
-      });
-    }
-  }, [isDragging, dragStart]);
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!dragging) return;
+    const svg = svgRef.current;
+    if (!svg) return;
+    
+    const rect = svg.getBoundingClientRect();
+    const scaleX = view.w / rect.width;
+    const scaleY = view.h / rect.height;
+    
+    const dx = (e.clientX - dragStart.x) * scaleX;
+    const dy = (e.clientY - dragStart.y) * scaleY;
+    
+    setView(v => ({ ...v, x: dragStart.vx - dx, y: dragStart.vy - dy }));
+  }, [dragging, dragStart, view.w, view.h]);
 
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false);
+  const onPointerUp = useCallback((e: React.PointerEvent) => {
+    setDragging(false);
+    (e.target as Element).releasePointerCapture(e.pointerId);
   }, []);
 
-  // Wheel zoom
-  const handleWheel = useCallback((e: React.WheelEvent) => {
+  const onWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
-    const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    setZoom(z => Math.max(0.3, Math.min(2, z * delta)));
-  }, []);
+    zoom(e.deltaY > 0 ? 0.9 : 1.1);
+  }, [zoom]);
 
-  // Get connected nodes for highlighting
-  const getConnectedNodes = useCallback((nodeId: string) => {
-    const connected = new Set<string>();
-    layoutEdges.forEach(e => {
-      if (e.from === nodeId) connected.add(e.to);
-      if (e.to === nodeId) connected.add(e.from);
+  // Edge path
+  const pathD = (e: EdgePos) => {
+    const dx = e.x2 - e.x1;
+    const cp = Math.min(Math.abs(dx) * 0.4, 100);
+    return `M${e.x1},${e.y1} C${e.x1+cp},${e.y1} ${e.x2-cp},${e.y2} ${e.x2},${e.y2}`;
+  };
+
+  // Highlight connections
+  const connected = useMemo(() => {
+    if (!hovered) return new Set<string>();
+    const s = new Set<string>();
+    edges.forEach(e => {
+      if (e.from === hovered) s.add(e.to);
+      if (e.to === hovered) s.add(e.from);
     });
-    return connected;
-  }, [layoutEdges]);
+    return s;
+  }, [hovered, edges]);
 
-  const connectedNodes = hoveredNode ? getConnectedNodes(hoveredNode) : new Set<string>();
+  // Current zoom percentage
+  const zoomPct = Math.round((bounds.w / view.w) * 100);
 
-  if (layoutNodes.length === 0) {
+  if (nodes.length === 0) {
     return (
-      <div className="bg-muted/20 rounded-2xl p-12 text-center">
-        <p className="text-muted-foreground">No dependency data to visualize</p>
+      <div className="bg-slate-800/50 rounded-2xl p-12 text-center border border-slate-700">
+        <p className="text-slate-400">No dependency data to visualize</p>
       </div>
     );
   }
@@ -309,129 +282,90 @@ export function DependencyFlowchart({ dependencyGraph, criticalPath = [] }: Depe
       {/* Controls */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleZoomOut} className="h-8 w-8 p-0">
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M20 12H4" />
-            </svg>
+          <Button variant="outline" size="sm" onClick={() => zoom(0.8)} className="h-8 w-8 p-0">
+            <span className="text-lg">-</span>
           </Button>
-          <span className="text-sm text-muted-foreground w-16 text-center">{Math.round(zoom * 100)}%</span>
-          <Button variant="outline" size="sm" onClick={handleZoomIn} className="h-8 w-8 p-0">
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-            </svg>
+          <span className="text-sm text-muted-foreground w-14 text-center">{zoomPct}%</span>
+          <Button variant="outline" size="sm" onClick={() => zoom(1.25)} className="h-8 w-8 p-0">
+            <span className="text-lg">+</span>
           </Button>
-          <Button variant="outline" size="sm" onClick={handleZoomReset} className="h-8 px-3">
-            <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-            </svg>
+          <Button variant="outline" size="sm" onClick={resetView} className="h-8 px-3">
             Fit
           </Button>
         </div>
-        
-        {/* Legend */}
-        <div className="flex items-center gap-4 text-xs">
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded bg-info/50" />
-            <span className="text-muted-foreground">Document</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded bg-success/50" />
-            <span className="text-muted-foreground">License</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded bg-primary/50" />
-            <span className="text-muted-foreground">Step</span>
-          </div>
+        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded" style={{background: COLORS.document}}/>
+            Document
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded" style={{background: COLORS.license}}/>
+            License
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded" style={{background: COLORS.step}}/>
+            Step
+          </span>
         </div>
       </div>
 
-      {/* Flowchart Canvas */}
+      {/* Canvas */}
       <div 
-        ref={containerRef}
-        className="bg-muted/10 rounded-2xl overflow-hidden relative select-none"
-        style={{ height: 500, cursor: isDragging ? "grabbing" : "grab" }}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        onWheel={handleWheel}
+        className="relative rounded-2xl overflow-hidden border border-slate-700"
+        style={{ height: 500, background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)" }}
       >
-        {/* Grid Background */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-30">
-          <defs>
-            <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" strokeWidth="0.5" className="text-border" />
-            </pattern>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#grid)" />
-        </svg>
-
-        {/* Main SVG Canvas */}
-        <svg 
-          className="absolute inset-0"
-          style={{
-            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-            transformOrigin: "0 0",
-          }}
+        <svg
+          ref={svgRef}
+          width="100%"
+          height="100%"
+          viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
+          style={{ cursor: dragging ? "grabbing" : "grab" }}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerLeave={onPointerUp}
+          onWheel={onWheel}
         >
-          {/* Arrow marker definitions */}
           <defs>
             {Object.entries(EDGE_COLORS).map(([type, color]) => (
-              <marker
-                key={type}
-                id={`arrow-${type}`}
-                viewBox="0 0 10 10"
-                refX="9"
-                refY="5"
-                markerWidth="6"
-                markerHeight="6"
-                orient="auto-start-reverse"
-              >
-                <path d="M 0 0 L 10 5 L 0 10 z" fill={color} />
+              <marker key={type} id={`arrow-${type}`} viewBox="0 0 10 10" refX="9" refY="5" 
+                      markerWidth="6" markerHeight="6" orient="auto">
+                <path d="M0,0 L10,5 L0,10 z" fill={color}/>
               </marker>
             ))}
-            {/* Glow filter */}
-            <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-              <feMerge>
-                <feMergeNode in="coloredBlur"/>
-                <feMergeNode in="SourceGraphic"/>
-              </feMerge>
+            <marker id="arrow-crit" viewBox="0 0 10 10" refX="9" refY="5" 
+                    markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M0,0 L10,5 L0,10 z" fill="#f59e0b"/>
+            </marker>
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="2" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
             </filter>
           </defs>
 
+          {/* Grid */}
+          <g opacity="0.07" stroke="white" strokeWidth="0.5">
+            {Array.from({length: 60}, (_, i) => <line key={`v${i}`} x1={i*50} y1="-100" x2={i*50} y2="1500"/>)}
+            {Array.from({length: 40}, (_, i) => <line key={`h${i}`} x1="-100" y1={i*50} x2="3000" y2={i*50}/>)}
+          </g>
+
           {/* Edges */}
-          <g className="edges">
-            {layoutEdges.map((edge, idx) => {
-              const isHighlighted = hoveredNode === edge.from || hoveredNode === edge.to;
-              const color = EDGE_COLORS[edge.type] || "#888";
+          <g>
+            {edges.map(e => {
+              const hl = hovered === e.from || hovered === e.to;
+              const color = e.isCritical ? "#f59e0b" : EDGE_COLORS[e.type] || "#888";
+              const dim = hovered && !hl;
               
               return (
-                <g key={idx}>
-                  {/* Edge path */}
-                  <path
-                    d={generateEdgePath(edge)}
-                    fill="none"
-                    stroke={color}
-                    strokeWidth={isHighlighted ? 3 : 2}
-                    strokeOpacity={hoveredNode && !isHighlighted ? 0.2 : 0.8}
-                    markerEnd={`url(#arrow-${edge.type})`}
-                    className="transition-all duration-200"
-                    style={{
-                      filter: isHighlighted ? "url(#glow)" : "none",
-                    }}
-                  />
-                  {/* Animated dash for critical path */}
-                  {Array.isArray(criticalPath) && criticalPath.includes(edge.from) && criticalPath.includes(edge.to) && (
-                    <path
-                      d={generateEdgePath(edge)}
-                      fill="none"
-                      stroke="#f59e0b"
-                      strokeWidth={2}
-                      strokeDasharray="8,4"
-                      strokeOpacity={0.5}
-                      className="animate-dash"
-                    />
+                <g key={e.id}>
+                  <path d={pathD(e)} fill="none" stroke={color} strokeWidth={hl ? 3 : 2} 
+                        opacity={dim ? 0.15 : 1} markerEnd={e.isCritical ? "url(#arrow-crit)" : `url(#arrow-${e.type})`}
+                        style={hl ? {filter: "url(#glow)"} : undefined}/>
+                  {e.isCritical && (
+                    <path d={pathD(e)} fill="none" stroke="#f59e0b" strokeWidth="2" 
+                          strokeDasharray="8,5" opacity="0.6">
+                      <animate attributeName="stroke-dashoffset" from="0" to="-26" dur="1s" repeatCount="indefinite"/>
+                    </path>
                   )}
                 </g>
               );
@@ -439,245 +373,157 @@ export function DependencyFlowchart({ dependencyGraph, criticalPath = [] }: Depe
           </g>
 
           {/* Nodes */}
-          <g className="nodes">
-            {layoutNodes.map((node) => {
-              const colors = NODE_COLORS[node.type] || NODE_COLORS.step;
-              const isHovered = hoveredNode === node.id;
-              const isConnected = connectedNodes.has(node.id);
-              const isSelected = selectedNode === node.id;
-              const isDimmed = hoveredNode && !isHovered && !isConnected;
+          <g>
+            {nodes.map(n => {
+              const color = COLORS[n.type] || COLORS.step;
+              const hl = hovered === n.id;
+              const conn = connected.has(n.id);
+              const sel = selected === n.id;
+              const dim = hovered && !hl && !conn;
               
               return (
-                <g
-                  key={node.id}
-                  transform={`translate(${node.x}, ${node.y})`}
-                  className="cursor-pointer transition-all duration-200"
-                  style={{
-                    opacity: isDimmed ? 0.3 : 1,
-                  }}
-                  onMouseEnter={() => setHoveredNode(node.id)}
-                  onMouseLeave={() => setHoveredNode(null)}
-                  onClick={() => setSelectedNode(node.id === selectedNode ? null : node.id)}
-                >
-                  {/* Critical path glow */}
-                  {node.isCritical && (
-                    <rect
-                      x={-4}
-                      y={-4}
-                      width={NODE_WIDTH + 8}
-                      height={NODE_HEIGHT + 8}
-                      rx={16}
-                      fill="none"
-                      stroke="#f59e0b"
-                      strokeWidth={2}
-                      strokeDasharray="6,3"
-                      className="animate-pulse"
-                      opacity={0.6}
-                    />
+                <g key={n.id} transform={`translate(${n.x},${n.y})`} opacity={dim ? 0.25 : 1}
+                   style={{cursor: "pointer"}}
+                   onPointerEnter={() => setHovered(n.id)}
+                   onPointerLeave={() => setHovered(null)}
+                   onClick={() => setSelected(n.id === selected ? null : n.id)}>
+                  
+                  {/* Critical glow */}
+                  {n.isCritical && (
+                    <rect x="-5" y="-5" width={NODE_W+10} height={NODE_H+10} rx="15" 
+                          fill="none" stroke="#f59e0b" strokeWidth="2" strokeDasharray="6,4">
+                      <animate attributeName="opacity" values="0.4;1;0.4" dur="2s" repeatCount="indefinite"/>
+                    </rect>
                   )}
                   
-                  {/* Node background */}
-                  <rect
-                    x={0}
-                    y={0}
-                    width={NODE_WIDTH}
-                    height={NODE_HEIGHT}
-                    rx={12}
-                    fill="white"
-                    className="dark:fill-gray-900"
-                    stroke={isHovered || isSelected ? colors.fill : "rgba(0,0,0,0.1)"}
-                    strokeWidth={isHovered || isSelected ? 2 : 1}
-                    filter={isHovered ? "url(#glow)" : "none"}
-                  />
+                  {/* Shadow */}
+                  <rect x="3" y="5" width={NODE_W} height={NODE_H} rx="12" fill="black" opacity="0.5"/>
                   
-                  {/* Colored accent */}
-                  <rect
-                    x={0}
-                    y={0}
-                    width={6}
-                    height={NODE_HEIGHT}
-                    rx={12}
-                    fill={colors.fill}
-                    clipPath="inset(0 round 12px 0 0 12px)"
-                  />
-                  <rect
-                    x={0}
-                    y={0}
-                    width={6}
-                    height={NODE_HEIGHT}
-                    fill={colors.fill}
-                  />
+                  {/* Background */}
+                  <rect width={NODE_W} height={NODE_H} rx="12" fill="#1e293b" 
+                        stroke={hl || sel ? color : "#475569"} strokeWidth={hl || sel ? 2.5 : 1.5}/>
                   
-                  {/* Node icon */}
-                  <g transform={`translate(16, ${NODE_HEIGHT / 2 - 10})`} fill={colors.fill}>
-                    {node.type === "document" ? (
-                      <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" 
-                            stroke={colors.fill} strokeWidth="1.5" fill="none" />
-                    ) : node.type === "license" ? (
-                      <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" 
-                            stroke={colors.fill} strokeWidth="1.5" fill="none" />
-                    ) : (
-                      <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" 
-                            stroke={colors.fill} strokeWidth="1.5" fill="none" />
-                    )}
+                  {/* Accent */}
+                  <rect width="6" height={NODE_H} rx="12" fill={color}/>
+                  <rect x="0" y="6" width="6" height={NODE_H-12} fill={color}/>
+                  
+                  {/* Icon */}
+                  <g transform="translate(18, 16)" fill="none" stroke={color} strokeWidth="1.5">
+                    {n.type === "document" && <>
+                      <rect x="1" y="0" width="16" height="20" rx="2"/>
+                      <line x1="5" y1="6" x2="13" y2="6"/>
+                      <line x1="5" y1="10" x2="13" y2="10"/>
+                      <line x1="5" y1="14" x2="10" y2="14"/>
+                    </>}
+                    {n.type === "license" && <>
+                      <path d="M9,0 L18,5 L18,13 C18,17 14,21 9,23 C4,21 0,17 0,13 L0,5 Z"/>
+                      <path d="M5,12 L8,15 L14,9" strokeLinecap="round" strokeLinejoin="round"/>
+                    </>}
+                    {n.type === "step" && <>
+                      <rect x="0" y="4" width="18" height="16" rx="2"/>
+                      <line x1="4" y1="0" x2="4" y2="4"/>
+                      <line x1="14" y1="0" x2="14" y2="4"/>
+                      <line x1="0" y1="10" x2="18" y2="10"/>
+                    </>}
                   </g>
                   
-                  {/* Node text */}
-                  <text
-                    x={44}
-                    y={NODE_HEIGHT / 2 + 1}
-                    fontSize={12}
-                    fontWeight={500}
-                    fill="currentColor"
-                    className="text-foreground"
-                    dominantBaseline="middle"
-                  >
-                    {node.name.length > 16 ? node.name.slice(0, 14) + "..." : node.name}
+                  {/* Text */}
+                  <text x="48" y="24" fontSize="12" fontWeight="600" fill="white">
+                    {n.name.length > 15 ? n.name.slice(0,13)+"..." : n.name}
+                  </text>
+                  <text x="48" y="42" fontSize="10" fill={color} style={{textTransform:"capitalize"}}>
+                    {n.type}
                   </text>
                   
-                  {/* Type badge */}
-                  <g transform={`translate(${NODE_WIDTH - 60}, 6)`}>
-                    <rect
-                      width={50}
-                      height={18}
-                      rx={9}
-                      fill={colors.fill}
-                      opacity={0.15}
-                    />
-                    <text
-                      x={25}
-                      y={12}
-                      fontSize={9}
-                      fill={colors.fill}
-                      textAnchor="middle"
-                      fontWeight={500}
-                      style={{ textTransform: "capitalize" }}
-                    >
-                      {node.type}
-                    </text>
-                  </g>
+                  {/* Critical dot */}
+                  {n.isCritical && <circle cx={NODE_W-15} cy="15" r="6" fill="#f59e0b"/>}
                 </g>
               );
             })}
           </g>
         </svg>
 
-        {/* Zoom hint */}
-        <div className="absolute bottom-4 left-4 text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded-lg">
-          Scroll to zoom • Drag to pan
+        {/* Info badges */}
+        <div className="absolute top-3 left-3 px-3 py-1.5 rounded-lg text-xs bg-black/70 text-white/80 backdrop-blur">
+          {nodes.length} nodes &middot; {edges.length} connections
+        </div>
+        <div className="absolute bottom-3 left-3 px-3 py-1.5 rounded-lg text-xs bg-black/70 text-white/80 backdrop-blur">
+          Scroll to zoom &middot; Drag to pan
         </div>
       </div>
 
-      {/* Selected Node Details */}
-      {selectedNode && (
-        <div className="bg-card rounded-xl p-5 animate-in fade-in slide-in-from-bottom-2 duration-200">
-          {(() => {
-            const node = layoutNodes.find(n => n.id === selectedNode);
-            if (!node) return null;
-            
-            const colors = NODE_COLORS[node.type] || NODE_COLORS.step;
-            const incomingEdges = layoutEdges.filter(e => e.to === selectedNode);
-            const outgoingEdges = layoutEdges.filter(e => e.from === selectedNode);
-            
-            return (
-              <div className="space-y-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${colors.bg} ${colors.text}`}>
-                      {node.type === "document" ? (
-                        <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                      ) : node.type === "license" ? (
-                        <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                        </svg>
-                      ) : (
-                        <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                        </svg>
-                      )}
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-lg">{node.name}</h4>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge className={`${colors.bg} ${colors.text} border-0 capitalize`}>{node.type}</Badge>
-                        {node.isCritical && (
-                          <Badge className="bg-warning/10 text-warning border-0">Critical Path</Badge>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => setSelectedNode(null)}
-                    className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
-                  >
-                    <svg className="h-5 w-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
+      {/* Selected node details */}
+      {selected && (() => {
+        const node = nodes.find(n => n.id === selected);
+        if (!node) return null;
+        
+        const color = COLORS[node.type] || COLORS.step;
+        const inEdges = edges.filter(e => e.to === selected);
+        const outEdges = edges.filter(e => e.from === selected);
+        
+        return (
+          <div className="bg-card rounded-xl p-5 border animate-in fade-in slide-in-from-bottom-2">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{background: `${color}20`}}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
+                    {node.type === "document" && <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8"/>}
+                    {node.type === "license" && <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z M9 12l2 2 4-4"/>}
+                    {node.type === "step" && <path d="M8 2v4 M16 2v4 M3 10h18 M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/>}
+                  </svg>
                 </div>
-                
-                <div className="grid gap-4 md:grid-cols-2">
-                  {/* Dependencies (incoming) */}
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium text-muted-foreground">Depends On ({incomingEdges.length})</p>
-                    {incomingEdges.length > 0 ? (
-                      <div className="space-y-1">
-                        {incomingEdges.map((edge, idx) => {
-                          const fromNode = layoutNodes.find(n => n.id === edge.from);
-                          return (
-                            <div key={idx} className="flex items-center gap-2 text-sm">
-                              <span className="text-warning">←</span>
-                              <span>{fromNode?.name || edge.from}</span>
-                              <span className="text-xs text-muted-foreground">({edge.type})</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">No dependencies</p>
-                    )}
-                  </div>
-                  
-                  {/* Enables (outgoing) */}
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium text-muted-foreground">Enables ({outgoingEdges.length})</p>
-                    {outgoingEdges.length > 0 ? (
-                      <div className="space-y-1">
-                        {outgoingEdges.map((edge, idx) => {
-                          const toNode = layoutNodes.find(n => n.id === edge.to);
-                          return (
-                            <div key={idx} className="flex items-center gap-2 text-sm">
-                              <span className="text-success">→</span>
-                              <span>{toNode?.name || edge.to}</span>
-                              <span className="text-xs text-muted-foreground">({edge.type})</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">No dependents</p>
-                    )}
+                <div>
+                  <h4 className="font-semibold text-lg">{node.name}</h4>
+                  <div className="flex gap-2 mt-1">
+                    <Badge style={{background:`${color}20`, color}} className="border-0 capitalize">{node.type}</Badge>
+                    {node.isCritical && <Badge className="bg-amber-500/10 text-amber-500 border-0">Critical Path</Badge>}
                   </div>
                 </div>
               </div>
-            );
-          })()}
-        </div>
-      )}
-
-      {/* Add CSS animation for dashed lines */}
-      <style jsx global>{`
-        @keyframes dash {
-          to {
-            stroke-dashoffset: -24;
-          }
-        }
-        .animate-dash {
-          animation: dash 1s linear infinite;
-        }
-      `}</style>
+              <button onClick={() => setSelected(null)} className="p-2 hover:bg-muted rounded-lg transition-colors">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+            
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground mb-2">Depends On ({inEdges.length})</p>
+                {inEdges.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {inEdges.map(e => {
+                      const from = nodes.find(n => n.id === e.from);
+                      return (
+                        <div key={e.id} className="flex items-center gap-2 text-sm bg-muted/30 rounded-lg px-3 py-2">
+                          <span style={{color: EDGE_COLORS[e.type]}}>&#8592;</span>
+                          <span className="font-medium">{from?.name || e.from}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : <p className="text-sm text-muted-foreground/60 italic">No dependencies - can start immediately</p>}
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground mb-2">Enables ({outEdges.length})</p>
+                {outEdges.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {outEdges.map(e => {
+                      const to = nodes.find(n => n.id === e.to);
+                      return (
+                        <div key={e.id} className="flex items-center gap-2 text-sm bg-muted/30 rounded-lg px-3 py-2">
+                          <span style={{color: EDGE_COLORS[e.type]}}>&#8594;</span>
+                          <span className="font-medium">{to?.name || e.to}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : <p className="text-sm text-muted-foreground/60 italic">Final step - nothing depends on this</p>}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
