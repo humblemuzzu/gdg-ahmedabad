@@ -848,9 +848,7 @@ export function FinalReport({
                     </>
                   ) : totalCost > 0 && rawCosts?.officialFeesInr === undefined ? (
                     <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20">Estimated</Badge>
-                  ) : (
-                    <Badge variant="outline" className="bg-info/10 text-info border-info/20">From Database</Badge>
-                  )}
+                  ) : null}
                 </div>
                 {/* Confidence meter */}
                 {result.verification?.costs?.overallConfidence !== undefined && (
@@ -881,9 +879,6 @@ export function FinalReport({
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1">
                       <span className="h-2 w-2 rounded-full bg-success"></span> Verified
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <span className="h-2 w-2 rounded-full bg-info"></span> Database
                     </span>
                     <span className="flex items-center gap-1">
                       <span className="h-2 w-2 rounded-full bg-warning"></span> Estimated
@@ -1377,63 +1372,129 @@ export function FinalReport({
                 </div>
 
                 <div className="space-y-6">
-                  {whatIfData.scenarios.map((scenario, idx) => (
-                    <div key={idx} className="bg-card rounded-2xl p-6">
-                      <div className="flex items-start justify-between gap-4 mb-4">
-                        <div className="flex items-start gap-4">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-warning/10 text-warning flex-shrink-0">
-                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
+                  {whatIfData.scenarios.map((scenario, idx) => {
+                    // Handle both API format (title) and legacy format (scenario)
+                    const scenarioData = scenario as unknown as Record<string, unknown>;
+                    const title = scenarioData.title || scenarioData.scenario || "Unknown Scenario";
+                    const trigger = scenarioData.trigger as string | undefined;
+                    const probability = scenarioData.probability as number | undefined;
+                    const probabilityLabel = scenarioData.probabilityLabel as string | undefined;
+                    const overallImpact = scenarioData.overallImpact as string | undefined;
+                    const impact = scenarioData.impact as string | undefined;
+                    const mitigation = scenarioData.mitigation as string | undefined;
+                    const summary = scenarioData.summary as string | undefined;
+                    const outcomes = scenarioData.outcomes as Array<{ outcome: string; probability?: number; action?: string }> | undefined;
+                    const decisionTree = scenarioData.decisionTree as { branches?: Array<{ cause: string; probability?: number; impact?: { timeline?: string; cost?: string }; preEmptiveAction?: { action: string } }> } | undefined;
+                    
+                    return (
+                      <div key={idx} className="bg-card rounded-2xl p-6">
+                        <div className="flex items-start justify-between gap-4 mb-4">
+                          <div className="flex items-start gap-4">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-warning/10 text-warning flex-shrink-0">
+                              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                            </div>
+                            <div>
+                              <h4 className="font-semibold text-foreground">{String(title)}</h4>
+                              {trigger && (
+                                <p className="text-sm text-muted-foreground mt-1">{trigger}</p>
+                              )}
+                            </div>
                           </div>
-                          <div>
-                            <h4 className="font-semibold text-foreground">{scenario.scenario}</h4>
+                          <div className="flex flex-col items-end gap-1">
+                            {probability !== undefined && (
+                              <Badge className="bg-warning/10 text-warning border-0">
+                                {Math.round(probability * 100)}% likely
+                              </Badge>
+                            )}
+                            {probabilityLabel && !probability && (
+                              <Badge className="bg-warning/10 text-warning border-0">
+                                {probabilityLabel}
+                              </Badge>
+                            )}
+                            {overallImpact && (
+                              <Badge variant="outline" className="text-xs">
+                                {overallImpact} Impact
+                              </Badge>
+                            )}
                           </div>
                         </div>
-                        {scenario.probability && (
-                          <Badge className="bg-warning/10 text-warning border-0">
-                            {Math.round(scenario.probability * 100)}% likely
-                          </Badge>
+
+                        {(impact || overallImpact) && (
+                          <div className="mb-4">
+                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Impact</p>
+                            <p className="text-sm text-muted-foreground">{impact || `${overallImpact} impact on your timeline and costs`}</p>
+                          </div>
                         )}
-                      </div>
 
-                      {scenario.impact && (
-                        <div className="mb-4">
-                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Impact</p>
-                          <p className="text-sm text-muted-foreground">{scenario.impact}</p>
-                        </div>
-                      )}
+                        {mitigation && (
+                          <div className="bg-muted/30 rounded-xl p-4 mb-4">
+                            <p className="text-xs font-semibold text-success uppercase tracking-wider mb-2">Mitigation</p>
+                            <p className="text-sm">{mitigation}</p>
+                          </div>
+                        )}
 
-                      {scenario.mitigation && (
-                        <div className="bg-muted/30 rounded-xl p-4 mb-4">
-                          <p className="text-xs font-semibold text-success uppercase tracking-wider mb-2">Mitigation</p>
-                          <p className="text-sm">{scenario.mitigation}</p>
-                        </div>
-                      )}
-
-                      {scenario.outcomes && scenario.outcomes.length > 0 && (
-                        <div className="border-t border-border/50 pt-4">
-                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Possible Outcomes</p>
-                          <div className="space-y-2">
-                            {scenario.outcomes.map((outcome, oidx) => (
-                              <div key={oidx} className="flex items-start gap-3 text-sm">
-                                <span className="text-warning">→</span>
-                                <div>
-                                  <span className="font-medium">{outcome.outcome}</span>
-                                  {outcome.probability && (
-                                    <span className="text-muted-foreground ml-2">({Math.round(outcome.probability * 100)}%)</span>
+                        {/* Show decision tree branches if available (API format) */}
+                        {decisionTree?.branches && decisionTree.branches.length > 0 && (
+                          <div className="border-t border-border/50 pt-4 mb-4">
+                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Possible Causes & Actions</p>
+                            <div className="space-y-3">
+                              {decisionTree.branches.slice(0, 3).map((branch, bidx) => (
+                                <div key={bidx} className="bg-muted/20 rounded-lg p-3">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <span className="font-medium text-sm">{branch.cause}</span>
+                                    {branch.probability !== undefined && (
+                                      <span className="text-xs text-muted-foreground">({Math.round(branch.probability * 100)}%)</span>
+                                    )}
+                                  </div>
+                                  {branch.impact && (
+                                    <div className="flex gap-3 mt-2 text-xs text-muted-foreground">
+                                      {branch.impact.timeline && <span>Timeline: {branch.impact.timeline}</span>}
+                                      {branch.impact.cost && <span>Cost: {branch.impact.cost}</span>}
+                                    </div>
                                   )}
-                                  {outcome.action && (
-                                    <p className="text-xs text-muted-foreground mt-0.5">Action: {outcome.action}</p>
+                                  {branch.preEmptiveAction?.action && (
+                                    <p className="text-xs text-success mt-2">Prevent: {branch.preEmptiveAction.action}</p>
                                   )}
                                 </div>
-                              </div>
-                            ))}
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                        )}
+
+                        {/* Show outcomes if available (legacy format) */}
+                        {outcomes && outcomes.length > 0 && (
+                          <div className="border-t border-border/50 pt-4">
+                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Possible Outcomes</p>
+                            <div className="space-y-2">
+                              {outcomes.map((outcome, oidx) => (
+                                <div key={oidx} className="flex items-start gap-3 text-sm">
+                                  <span className="text-warning">→</span>
+                                  <div>
+                                    <span className="font-medium">{outcome.outcome}</span>
+                                    {outcome.probability !== undefined && (
+                                      <span className="text-muted-foreground ml-2">({Math.round(outcome.probability * 100)}%)</span>
+                                    )}
+                                    {outcome.action && (
+                                      <p className="text-xs text-muted-foreground mt-0.5">Action: {outcome.action}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Show summary if available */}
+                        {summary && (
+                          <div className="mt-4 pt-4 border-t border-border/50">
+                            <p className="text-sm text-muted-foreground italic">{summary}</p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {/* Best Strategy */}
