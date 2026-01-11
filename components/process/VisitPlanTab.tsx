@@ -1,9 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import type { VisitPlanData, VisitDay, Visit, VisitPriority } from "@/types";
+
+// Types for user location
+type LocationStatus = "idle" | "loading" | "success" | "error" | "denied";
+
+interface UserLocation {
+  latitude: number;
+  longitude: number;
+}
 
 interface VisitPlanTabProps {
   visitPlan: VisitPlanData | null | undefined;
@@ -23,14 +32,32 @@ const generateMapsUrl = (address: string, landmark?: string): string => {
 };
 
 // Helper to generate multi-stop route URL
-const generateRouteUrl = (visits: Visit[]): string => {
+// userOrigin can be: coordinates string "lat,lng", an address string, or undefined (falls back to first visit)
+const generateRouteUrl = (visits: Visit[], userOrigin?: string): string => {
   const addresses = visits
     .filter((v) => v.location?.address || v.office)
     .map((v) => v.location?.address || v.office);
-  if (addresses.length < 2) return "";
-  const origin = addresses[0];
-  const destination = addresses[addresses.length - 1];
-  const waypoints = addresses.slice(1, -1).join("|");
+  if (addresses.length === 0) return "";
+  
+  // If user origin is provided, use it. Otherwise use first visit address.
+  // When user origin is set, all visit addresses become the route (first as waypoint, last as destination)
+  let origin: string;
+  let destination: string;
+  let waypoints: string;
+  
+  if (userOrigin) {
+    origin = userOrigin;
+    destination = addresses[addresses.length - 1];
+    // All addresses except the last become waypoints
+    waypoints = addresses.slice(0, -1).join("|");
+  } else {
+    // Fallback: first visit is origin (legacy behavior)
+    if (addresses.length < 2) return "";
+    origin = addresses[0];
+    destination = addresses[addresses.length - 1];
+    waypoints = addresses.slice(1, -1).join("|");
+  }
+  
   return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}${waypoints ? `&waypoints=${encodeURIComponent(waypoints)}` : ""}`;
 };
 
@@ -395,6 +422,78 @@ function DaySection({ day, defaultExpanded = false }: { day: VisitDay; defaultEx
 
 export function VisitPlanTab({ visitPlan }: VisitPlanTabProps) {
   const { summary, days, flatVisits, optimizationTips } = normalizeVisitPlan(visitPlan);
+  
+  // User location state
+  const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
+  const [locationStatus, setLocationStatus] = useState<LocationStatus>("idle");
+  const [manualAddress, setManualAddress] = useState("");
+  const [showManualInput, setShowManualInput] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+
+  // Request geolocation
+  const requestLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      setLocationStatus("error");
+      setLocationError("Geolocation is not supported by your browser");
+      setShowManualInput(true);
+      return;
+    }
+
+    setLocationStatus("loading");
+    setLocationError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setUserLocation({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+        setLocationStatus("success");
+        setShowManualInput(false);
+      },
+      (error) => {
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            setLocationStatus("denied");
+            setLocationError("Location permission denied. Please enter your starting address manually.");
+            break;
+          case error.POSITION_UNAVAILABLE:
+            setLocationStatus("error");
+            setLocationError("Location unavailable. Please enter your starting address manually.");
+            break;
+          case error.TIMEOUT:
+            setLocationStatus("error");
+            setLocationError("Location request timed out. Please try again or enter address manually.");
+            break;
+          default:
+            setLocationStatus("error");
+            setLocationError("Unable to get location. Please enter your starting address manually.");
+        }
+        setShowManualInput(true);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 300000, // Cache for 5 minutes
+      }
+    );
+  }, []);
+
+  // Request location on component mount
+  useEffect(() => {
+    requestLocation();
+  }, [requestLocation]);
+
+  // Generate the origin string for the route URL
+  const getUserOrigin = useCallback((): string | undefined => {
+    if (userLocation) {
+      return `${userLocation.latitude},${userLocation.longitude}`;
+    }
+    if (manualAddress.trim()) {
+      return manualAddress.trim();
+    }
+    return undefined;
+  }, [userLocation, manualAddress]);
 
   // Empty state
   if (days.length === 0 && flatVisits.length === 0) {
@@ -414,10 +513,125 @@ export function VisitPlanTab({ visitPlan }: VisitPlanTabProps) {
     );
   }
 
-  const routeUrl = generateRouteUrl(flatVisits);
+  const userOrigin = getUserOrigin();
+  const routeUrl = generateRouteUrl(flatVisits, userOrigin);
 
   return (
     <div className="space-y-8">
+      {/* Location Status Section */}
+      <div className="bg-muted/30 rounded-2xl p-5">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            {/* Location icon with status indicator */}
+            <div className={`flex h-10 w-10 items-center justify-center rounded-full ${
+              locationStatus === "success" ? "bg-success/10" :
+              locationStatus === "loading" ? "bg-info/10" :
+              locationStatus === "denied" || locationStatus === "error" ? "bg-destructive/10" :
+              "bg-muted/50"
+            }`}>
+              {locationStatus === "loading" ? (
+                <svg className="h-5 w-5 text-info animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+              ) : (
+                <svg className={`h-5 w-5 ${
+                  locationStatus === "success" ? "text-success" :
+                  locationStatus === "denied" || locationStatus === "error" ? "text-destructive" :
+                  "text-muted-foreground"
+                }`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              )}
+            </div>
+            
+            <div>
+              <p className="font-medium text-sm">
+                {locationStatus === "loading" && "Getting your location..."}
+                {locationStatus === "success" && "Using your current location"}
+                {locationStatus === "denied" && "Location access denied"}
+                {locationStatus === "error" && "Couldn't get location"}
+                {locationStatus === "idle" && "Location not set"}
+                {manualAddress.trim() && !userLocation && " - Using manual address"}
+              </p>
+              {locationError && (
+                <p className="text-xs text-destructive mt-0.5">{locationError}</p>
+              )}
+              {userLocation && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Route will start from your current position
+                </p>
+              )}
+              {manualAddress.trim() && !userLocation && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Route will start from: {manualAddress}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {locationStatus !== "loading" && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={requestLocation}
+                  className="gap-2"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  {userLocation ? "Refresh" : "Detect Location"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowManualInput(!showManualInput)}
+                >
+                  {showManualInput ? "Hide" : "Enter Manually"}
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Manual Address Input */}
+        {showManualInput && (
+          <div className="mt-4 pt-4 border-t border-border/50">
+            <label className="text-sm font-medium mb-2 block">
+              Enter your starting address
+            </label>
+            <div className="flex gap-2">
+              <Input
+                type="text"
+                placeholder="e.g., 123 Main Street, Ahmedabad, Gujarat"
+                value={manualAddress}
+                onChange={(e) => setManualAddress(e.target.value)}
+                className="flex-1"
+              />
+              {manualAddress.trim() && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setManualAddress("")}
+                  title="Clear address"
+                  className="px-2"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              This address will be used as the starting point for your route
+            </p>
+          </div>
+        )}
+      </div>
+
       {/* Summary Section */}
       {summary && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
