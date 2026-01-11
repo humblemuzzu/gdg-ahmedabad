@@ -1,0 +1,116 @@
+{
+  "id": "manufacturing",
+  "name": "Manufacturing Unit",
+  "subTypes": [
+    { "id": "food-manufacturing", "name": "Food Processing / Manufacturing" },
+    { "id": "textile-manufacturing", "name": "Textile & Garment Manufacturing" },
+    { "id": "pharma-manufacturing", "name": "Pharmaceutical Manufacturing" },
+    { "id": "chemical-manufacturing", "name": "Chemical Manufacturing" },
+    { "id": "plastic-manufacturing", "name": "Plastic & Rubber Manufacturing" },
+    { "id": "metal-fabrication", "name": "Metal Fabrication & Engineering" },
+    { "id": "electronics-manufacturing", "name": "Electronics Manufacturing" },
+    { "id": "furniture-manufacturing", "name": "Furniture Manufacturing" },
+    { "id": "packaging-manufacturing", "name": "Packaging Materials" },
+    { "id": "cosmetics-manufacturing", "name": "Cosmetics & Personal Care" }
+  ],
+  "defaultLicenses": [
+    "gst",
+    "shop-establishment",
+    "trade-license",
+    "factory-license",
+    "fire-noc",
+    "pollution-consent",
+    "msme-registration"
+  ],
+  "conditionalLicenses": {
+    "food-manufacturing": ["fssai-central", "fssai-manufacturing", "bis-certification"],
+    "pharma-manufacturing": ["drug-manufacturing-license", "cdsco-approval", "gmp-certification"],
+    "chemical-manufacturing": ["hazardous-waste-authorization", "chemical-storage-license", "explosive-license"],
+    "textile-manufacturing": ["zed-certification"],
+    "electronics-manufacturing": ["bis-certification", "e-waste-producer-registration"],
+    "plastic-manufacturing": ["plastic-waste-authorization", "eppr-registration"],
+    "cosmetics-manufacturing": ["cosmetics-manufacturing-license", "bis-certification"]
+  },
+  "scaleThresholds": {
+    "employees": { "epfo": 20, "esic": 10, "factories-act": 10 },
+    "turnover": { "gst": 4000000, "tax-audit": 10000000 },
+    "areaSqFt": { "fire-noc-mandatory": 1000 },
+    "powerLoad": { "factory-license": "10HP" }
+  },
+  "typicalCosts": {
+    "officialFees": {
+      "min": 30000,
+      "max": 150000
+    },
+    "practicalCosts": {
+      "min": 75000,
+      "max": 300000
+    }
+  },
+  "typicalTimeline": {
+    "min": 45,
+    "max": 120,
+    "avg": 75
+  },
+  "commonDocuments": [
+    "pan-card",
+    "aadhaar-card",
+    "passport-photos",
+    "rent-agreement",
+    "electricity-bill",
+    "building-plan-approval",
+    "occupancy-certificate",
+    "floor-plan",
+    "machinery-list",
+    "process-flow-chart",
+    "effluent-treatment-plan",
+    "fire-safety-plan",
+    "environmental-clearance"
+  ],
+  "stateVariations": {
+    "maharashtra": {
+      "industrialArea": "MIDC",
+      "singleWindow": "maitri.mahaonline.gov.in",
+      "pollutionBoard": "MPCB"
+    },
+    "gujarat": {
+      "industrialArea": "GIDC",
+      "singleWindow": "ifp.gujarat.gov.in",
+      "pollutionBoard": "GPCB"
+    },
+    "karnataka": {
+      "industrialArea": "KIADB",
+      "singleWindow": "kum.karnataka.gov.in",
+      "pollutionBoard": "KSPCB"
+    },
+    "telangana": {
+      "industrialArea": "TSIIC",
+      "singleWindow": "ipass.telangana.gov.in",
+      "pollutionBoard": "TSPCB",
+      "specialNote": "TS-iPASS provides deemed approval if no response in 15 days"
+    }
+  },
+  "pollutionCategories": {
+    "red": ["chemical-manufacturing", "pharma-manufacturing", "metal-fabrication"],
+    "orange": ["food-manufacturing", "textile-manufacturing", "plastic-manufacturing"],
+    "green": ["furniture-manufacturing", "packaging-manufacturing"],
+    "white": ["electronics-manufacturing"]
+  },
+  "tips": [
+    "Factory License is mandatory if using power-driven machinery with 10+ workers",
+    "Pollution Consent (CTE/CTO) required before starting operations",
+    "MSME registration (Udyam) is free and provides multiple benefits",
+    "Food manufacturing requires FSSAI Manufacturing License (not just registration)",
+    "Pharma manufacturing needs WHO-GMP or Schedule M compliance",
+    "E-waste producers must register under E-Waste Management Rules"
+  ],
+  "zones": {
+    "industrial": "Preferred - streamlined approvals in MIDC/GIDC/SEZ areas",
+    "commercial": "May need land use conversion, additional NOCs",
+    "residential": "Generally not permitted for manufacturing",
+    "sez": "Special Economic Zone - different rules, export benefits"
+  },
+  "sources": [
+    { "label": "Hackathon KB seed", "note": "Manufacturing business type for demo scenarios" }
+  ]
+}

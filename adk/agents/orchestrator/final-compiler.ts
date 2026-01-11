@@ -29,8 +29,13 @@ export const finalCompilerAgent = new LlmAgent({
 
     // Force Gemini to emit machine-parseable JSON (prevents ```json fences and stray text)
     request.config.responseMimeType = "application/json";
+    
+    // CRITICAL: Increase max output tokens to handle large JSON responses
+    // Default is 8192 which can truncate large ProcessResult objects
+    request.config.maxOutputTokens = 16384;
 
-    const snapshot = JSON.stringify(parsed, null, 2);
+    // Compact the snapshot to reduce context size
+    const snapshot = JSON.stringify(parsed);
     request.config.systemInstruction =
       (request.config.systemInstruction ? `${request.config.systemInstruction}\n\n` : "") +
       `CONTEXT_SNAPSHOT_JSON:\n${snapshot}`;

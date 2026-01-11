@@ -3,15 +3,27 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { ProcessResult, ProcessStep, ProcessCost, ProcessRisk, ProcessDocument, GeneratedDraft, TimelinePlanItem, DependencyGraph, ProcessStepStatus, VisitPlanData } from "@/types";
+import { 
+  VerificationBadge, 
+  VerificationSummaryBadge, 
+  DataSourceIndicator,
+  SourceLink,
+  ConfidenceMeter,
+  VerificationLogPanel,
+  TimestampBadge,
+  LiveVerificationLoader,
+  type VerificationLogEntry
+} from "@/components/ui/verification-badge";
+import type { ProcessResult, ProcessStep, ProcessCost, ProcessRisk, ProcessDocument, GeneratedDraft, TimelinePlanItem, DependencyGraph, ProcessStepStatus, VisitPlanData, VerificationSummary } from "@/types";
 import { ProcessDependencyGraph } from "./ProcessDependencyGraph";
 import { RemindersPanel } from "./RemindersPanel";
 import { VisitPlanTab } from "./VisitPlanTab";
-import { getEstimatedCosts, getRisksWithDefaults, calculateOfficialCost, DEFAULT_RISKS } from "@/lib/constants/defaults";
+import { getEstimatedCosts, getRisksWithDefaults, calculateOfficialCost, DEFAULT_RISKS, getStateComparisonWithDefaults, getWhatIfWithDefaults } from "@/lib/constants/defaults";
 
 interface FinalReportProps {
   result: ProcessResult | null;
   isComplete: boolean;
+  isVerifying?: boolean; // True when Perplexity verification is in progress
   query?: string;
   steps: ProcessStep[];
   costs: ProcessCost[];
@@ -73,6 +85,7 @@ const statusStyles: Record<ProcessStepStatus, { bg: string; text: string; label:
 export function FinalReport({ 
   result, 
   isComplete, 
+  isVerifying = false,
   query,
   steps,
   costs,
@@ -202,8 +215,10 @@ export function FinalReport({
   const recommendation = expertAdvice?.recommendation;
 
   const drafts: GeneratedDraft[] = result.drafts || [];
-  const stateComparison = result.outputs?.stateComparison as StateComparisonData | undefined;
-  const whatIfData = result.outputs?.whatIf as WhatIfData | undefined;
+  const rawStateComparison = result.outputs?.stateComparison as StateComparisonData | undefined;
+  const stateComparison = getStateComparisonWithDefaults(rawStateComparison);
+  const rawWhatIfData = result.outputs?.whatIf as WhatIfData | undefined;
+  const whatIfData = getWhatIfWithDefaults(rawWhatIfData);
   
   const visitPlanRaw = result.outputs?.visitPlan;
   const visitPlan: VisitPlanData | undefined = typeof visitPlanRaw === 'string' 
@@ -791,15 +806,60 @@ export function FinalReport({
         {/* Costs Sub-tab */}
         {activeMainTab === "planning" && activeSubTab === "costs" && (
           <div className="space-y-8">
+            {/* Live Verification Loader - shows when verification is in progress */}
+            {isVerifying && (
+              <LiveVerificationLoader 
+                agentName="Cost Calculator"
+                itemName="government fees"
+              />
+            )}
+
+            {/* Verification Status Banner */}
+            {!isVerifying && (result.verification?.costs || rawCosts?.verificationSummary) && (
+              <div className="flex items-center justify-between bg-muted/20 rounded-xl p-4">
+                <VerificationSummaryBadge summary={result.verification?.costs || rawCosts?.verificationSummary as VerificationSummary} />
+                <DataSourceIndicator 
+                  hasLiveData={!!result.verification?.costs?.verifiedCount} 
+                  lastVerified={result.verification?.costs?.lastUpdated || result.verification?.lastUpdated}
+                />
+              </div>
+            )}
+
             {/* Cost Summary Cards */}
             <div className="grid gap-6 md:grid-cols-2">
-              <div className="bg-success/5 rounded-2xl p-8 text-center">
+              <div className="bg-success/5 rounded-2xl p-8 text-center relative">
                 <p className="text-4xl font-bold text-success">
                   ₹{totalCost.toLocaleString("en-IN")}
                 </p>
                 <p className="text-muted-foreground mt-2">Official Government Fees</p>
-                {totalCost > 0 && rawCosts?.officialFeesInr === undefined && (
-                  <Badge variant="outline" className="mt-2">Estimated</Badge>
+                <div className="mt-3 flex flex-col items-center gap-2">
+                  {result.verification?.costs?.verifiedCount ? (
+                    <>
+                      <Badge variant="outline" className="bg-success/10 text-success border-success/20">
+                        <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                        Live Verified
+                      </Badge>
+                      <TimestampBadge 
+                        timestamp={result.verification?.costs?.lastUpdated || result.verification?.lastUpdated} 
+                        variant="success"
+                      />
+                    </>
+                  ) : totalCost > 0 && rawCosts?.officialFeesInr === undefined ? (
+                    <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20">Estimated</Badge>
+                  ) : (
+                    <Badge variant="outline" className="bg-info/10 text-info border-info/20">From Database</Badge>
+                  )}
+                </div>
+                {/* Confidence meter */}
+                {result.verification?.costs?.overallConfidence !== undefined && (
+                  <div className="mt-4 flex justify-center">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">Confidence:</span>
+                      <ConfidenceMeter confidence={result.verification.costs.overallConfidence} size="md" />
+                    </div>
+                  </div>
                 )}
               </div>
               <div className="bg-warning/5 rounded-2xl p-8 text-center">
@@ -808,7 +868,7 @@ export function FinalReport({
                 </p>
                 <p className="text-muted-foreground mt-2">Practical Total (incl. consultants, travel)</p>
                 {(practicalMin > 0 || practicalMax > 0) && !rawCosts?.practicalCostsInrRange && (
-                  <Badge variant="outline" className="mt-2">Estimated</Badge>
+                  <Badge variant="outline" className="mt-2 bg-warning/10 text-warning border-warning/20">Estimated</Badge>
                 )}
               </div>
             </div>
@@ -816,21 +876,72 @@ export function FinalReport({
             {/* Cost Breakdown */}
             {costs.length > 0 ? (
               <div className="bg-card rounded-2xl overflow-hidden">
-                <div className="p-5 border-b border-border/50">
+                <div className="p-5 border-b border-border/50 flex items-center justify-between">
                   <h3 className="font-semibold text-lg">Detailed Breakdown</h3>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <span className="h-2 w-2 rounded-full bg-success"></span> Verified
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="h-2 w-2 rounded-full bg-info"></span> Database
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="h-2 w-2 rounded-full bg-warning"></span> Estimated
+                    </span>
+                  </div>
                 </div>
                 <div className="divide-y divide-border/50">
-                  {costs.map((cost, idx) => (
-                    <div key={cost.id || idx} className="flex items-center justify-between p-5 hover:bg-muted/20 transition-colors">
-                      <div>
-                        <p className="font-medium">{cost.label}</p>
-                        {cost.note && <p className="text-sm text-muted-foreground mt-0.5">{cost.note}</p>}
+                  {costs.map((cost, idx) => {
+                    // Check if this cost item has verification info
+                    const lineItem = rawCosts?.lineItems?.find((li: { id?: string; name?: string }) => 
+                      li.id === cost.id || li.name === cost.label
+                    );
+                    const verification = lineItem?.verification;
+                    
+                    return (
+                      <div key={cost.id || idx} className="flex items-start justify-between p-5 hover:bg-muted/20 transition-colors gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-medium">{cost.label}</p>
+                            {verification?.verified && (
+                              <span className="h-2 w-2 rounded-full bg-success flex-shrink-0" title="Live verified"></span>
+                            )}
+                            {verification?.confidence !== undefined && (
+                              <ConfidenceMeter confidence={verification.confidence} size="sm" showLabel={true} />
+                            )}
+                          </div>
+                          {cost.note && <p className="text-sm text-muted-foreground mt-0.5">{cost.note}</p>}
+                          {/* Source link - clickable if URL available */}
+                          {(verification?.sourceName || verification?.sourceUrl) && (
+                            <div className="mt-1.5">
+                              <SourceLink 
+                                sourceName={verification.sourceName} 
+                                sourceUrl={verification.sourceUrl} 
+                              />
+                            </div>
+                          )}
+                          {/* Last verified timestamp */}
+                          {verification?.lastVerified && (
+                            <TimestampBadge 
+                              timestamp={verification.lastVerified} 
+                              label="Verified"
+                              variant={verification.verified ? "success" : "default"}
+                            />
+                          )}
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="font-semibold text-foreground">
+                            ₹{cost.amountINR.toLocaleString("en-IN")}
+                          </p>
+                          {verification && (
+                            <div className="mt-1">
+                              <VerificationBadge verification={verification} size="sm" showConfidence={false} />
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <p className="font-semibold text-foreground">
-                        ₹{cost.amountINR.toLocaleString("en-IN")}
-                      </p>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 <div className="flex items-center justify-between p-5 bg-muted/30">
                   <p className="font-semibold">Total Official Fees</p>
@@ -866,6 +977,65 @@ export function FinalReport({
                 </div>
               </div>
             </div>
+
+            {/* Verification Log Panel */}
+            {(() => {
+              // Generate verification log entries from cost line items
+              const logEntries: VerificationLogEntry[] = [];
+              const lineItems = rawCosts?.lineItems || [];
+              
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              lineItems.forEach((item: any, idx: number) => {
+                if (item.verification) {
+                  logEntries.push({
+                    id: `cost-${idx}`,
+                    timestamp: item.verification.lastVerified || new Date().toLocaleTimeString(),
+                    agent: "Cost Calculator",
+                    action: "verify_fee",
+                    item: item.name || item.id || `License Fee ${idx + 1}`,
+                    result: item.verification.verified ? "verified" : 
+                            item.verification.fromCache ? "cached" : 
+                            item.verification.error ? "failed" : "skipped",
+                    source: item.verification.sourceName,
+                    sourceUrl: item.verification.sourceUrl,
+                    confidence: item.verification.confidence,
+                  });
+                }
+              });
+
+              // Add timeline verification entries if available
+              if (result.verification?.timeline) {
+                logEntries.push({
+                  id: "timeline-summary",
+                  timestamp: result.verification.timeline.lastUpdated || new Date().toLocaleTimeString(),
+                  agent: "Timeline Architect",
+                  action: "verify_timeline",
+                  item: `Processing times (${result.verification.timeline.verifiedCount}/${result.verification.timeline.totalItems} verified)`,
+                  result: result.verification.timeline.verifiedCount > 0 ? "verified" : "skipped",
+                  confidence: result.verification.timeline.overallConfidence,
+                });
+              }
+
+              // Add policy verification entries if available
+              if (result.verification?.policies) {
+                logEntries.push({
+                  id: "policy-summary",
+                  timestamp: result.verification.policies.lastUpdated || new Date().toLocaleTimeString(),
+                  agent: "Policy Scout",
+                  action: "check_policies",
+                  item: `Policy changes (${result.verification.policies.verifiedCount} found)`,
+                  result: result.verification.policies.verifiedCount > 0 ? "verified" : "skipped",
+                  confidence: result.verification.policies.overallConfidence,
+                });
+              }
+
+              return logEntries.length > 0 ? (
+                <VerificationLogPanel 
+                  entries={logEntries}
+                  title="Data Verification Log"
+                />
+              ) : null;
+            })()}
           </div>
         )}
 
@@ -1053,7 +1223,7 @@ export function FinalReport({
         {/* State Comparison Sub-tab */}
         {activeMainTab === "analysis" && activeSubTab === "comparison" && (
           <div className="space-y-8">
-            {stateComparison?.states && stateComparison.states.length > 0 ? (
+            {stateComparison.states && stateComparison.states.length > 0 ? (
               <>
                 <div>
                   <h2 className="text-xl font-semibold">State-by-State Comparison</h2>
@@ -1199,7 +1369,7 @@ export function FinalReport({
         {/* What-If Sub-tab */}
         {activeMainTab === "analysis" && activeSubTab === "whatif" && (
           <div className="space-y-8">
-            {whatIfData?.scenarios && whatIfData.scenarios.length > 0 ? (
+            {whatIfData.scenarios && whatIfData.scenarios.length > 0 ? (
               <>
                 <div>
                   <h2 className="text-xl font-semibold">What-If Scenarios</h2>

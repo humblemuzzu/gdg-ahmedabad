@@ -130,7 +130,7 @@ function calculateLayout(
 
   // Calculate positions
   const nodeMap = new Map(nodes.map(n => [n.id, n]));
-  const criticalSet = new Set(criticalPath);
+  const criticalSet = new Set(Array.isArray(criticalPath) ? criticalPath : []);
   const layoutNodes: LayoutNode[] = [];
   
   let maxLevel = 0;
@@ -202,10 +202,14 @@ export function DependencyFlowchart({ dependencyGraph, criticalPath = [] }: Depe
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
 
-  // Calculate layout
+  // Calculate layout - ensure nodes and edges are arrays
+  const safeNodes = Array.isArray(dependencyGraph?.nodes) ? dependencyGraph.nodes : [];
+  const safeEdges = Array.isArray(dependencyGraph?.edges) ? dependencyGraph.edges : [];
+  const safeCriticalPath = Array.isArray(criticalPath) ? criticalPath : [];
+  
   const { layoutNodes, layoutEdges, width, height } = useMemo(() => 
-    calculateLayout(dependencyGraph.nodes, dependencyGraph.edges, criticalPath),
-    [dependencyGraph.nodes, dependencyGraph.edges, criticalPath]
+    calculateLayout(safeNodes, safeEdges, safeCriticalPath),
+    [safeNodes, safeEdges, safeCriticalPath]
   );
 
   // Fit to container on mount
@@ -418,7 +422,7 @@ export function DependencyFlowchart({ dependencyGraph, criticalPath = [] }: Depe
                     }}
                   />
                   {/* Animated dash for critical path */}
-                  {criticalPath.includes(edge.from) && criticalPath.includes(edge.to) && (
+                  {Array.isArray(criticalPath) && criticalPath.includes(edge.from) && criticalPath.includes(edge.to) && (
                     <path
                       d={generateEdgePath(edge)}
                       fill="none"

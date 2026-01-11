@@ -1,0 +1,81 @@
+{
+  "id": "retail-shop",
+  "name": "Retail Shop / Store",
+  "subTypes": [
+    { "id": "general-store", "name": "General Store / Kirana" },
+    { "id": "medical-store", "name": "Medical Store / Pharmacy" },
+    { "id": "electronics", "name": "Electronics & Appliances" },
+    { "id": "garments", "name": "Garments & Apparel" },
+    { "id": "jewelry", "name": "Jewelry Store" },
+    { "id": "mobile-store", "name": "Mobile Phone Store" },
+    { "id": "hardware", "name": "Hardware Store" },
+    { "id": "stationery", "name": "Stationery & Books" },
+    { "id": "cosmetics", "name": "Cosmetics & Beauty" },
+    { "id": "grocery", "name": "Grocery & Supermarket" }
+  ],
+  "defaultLicenses": [
+    "gst",
+    "shop-establishment",
+    "trade-license",
+    "signage-license"
+  ],
+  "conditionalLicenses": {
+    "medical-store": ["drug-license", "pharmacy-council-registration"],
+    "jewelry": ["bis-hallmarking", "gold-dealer-registration"],
+    "electronics": ["e-waste-authorization"],
+    "mobile-store": ["police-verification"],
+    "grocery": ["fssai-basic", "weights-measures-license"]
+  },
+  "scaleThresholds": {
+    "employees": { "epfo": 20, "esic": 10 },
+    "turnover": { "gst": 4000000 },
+    "areaSqFt": { "fire-noc-mandatory": 500 }
+  },
+  "typicalCosts": {
+    "officialFees": {
+      "min": 8000,
+      "max": 25000
+    },
+    "practicalCosts": {
+      "min": 15000,
+      "max": 45000
+    }
+  },
+  "typicalTimeline": {
+    "min": 15,
+    "max": 45,
+    "avg": 25
+  },
+  "commonDocuments": [
+    "pan-card",
+    "aadhaar-card",
+    "passport-photos",
+    "rent-agreement",
+    "electricity-bill",
+    "noc-from-landlord",
+    "floor-plan"
+  ],
+  "stateVariations": {
+    "maharashtra": {
+      "shopAct": "Gumasta License",
+      "portal": "mahakamgar.maharashtra.gov.in"
+    },
+    "karnataka": {
+      "shopAct": "Shops & Establishment License",
+      "portal": "labour.karnataka.gov.in"
+    },
+    "delhi": {
+      "shopAct": "Delhi Shops & Establishment",
+      "portal": "labour.delhi.gov.in"
+    }
+  },
+  "tips": [
+    "Medical stores require additional Drug License from State Drug Controller",
+    "Jewelry stores need BIS Hallmarking registration for selling gold",
+    "Electronics stores may need E-waste authorization for disposing old electronics",
+    "GST registration is mandatory if turnover exceeds Rs 40 lakhs (goods)"
+  ],
+  "sources": [
+    { "label": "Hackathon KB seed", "note": "Retail business type for demo scenarios" }
+  ]
+}

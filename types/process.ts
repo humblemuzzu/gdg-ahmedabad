@@ -1,5 +1,30 @@
 import type { CurrencyINR, TimelineEstimateDays } from "./data";
 
+// ===============================
+// VERIFICATION TYPES (Live Data)
+// ===============================
+
+export type VerificationSource = "official_portal" | "knowledge_base" | "live_search" | "estimated" | "cached";
+
+export interface VerificationInfo {
+  verified: boolean;
+  source: VerificationSource;
+  sourceName?: string;
+  sourceUrl?: string;
+  lastVerified?: string;
+  confidence: number;
+  fromCache?: boolean;
+}
+
+export interface VerificationSummary {
+  totalItems: number;
+  verifiedCount: number;
+  cachedCount: number;
+  unverifiedCount: number;
+  lastUpdated: string;
+  overallConfidence: number;
+}
+
 export type Urgency = "normal" | "urgent" | "critical";
 export type BusinessIntent =
   | "START_BUSINESS"
@@ -55,6 +80,8 @@ export interface TimelinePlanItem {
   canRunInParallelWith?: string[];
   prerequisites?: string[];
   notes?: string[];
+  verification?: VerificationInfo;
+  currentDelayFactor?: number; // 1.0 = normal, 1.5 = 50% slower than usual
 }
 
 export interface CostBreakdown {
@@ -67,7 +94,9 @@ export interface CostBreakdown {
     amountInr?: CurrencyINR;
     rangeInr?: { min: CurrencyINR; max: CurrencyINR };
     notes?: string[];
+    verification?: VerificationInfo;
   }>;
+  verificationSummary?: VerificationSummary;
 }
 
 export interface RiskItem {
@@ -189,6 +218,13 @@ export interface ProcessResult {
   };
   drafts?: GeneratedDraft[];
   meta?: Record<string, unknown>;
+  verification?: {
+    costs?: VerificationSummary;
+    timeline?: VerificationSummary;
+    policies?: VerificationSummary;
+    overallConfidence?: number;
+    lastUpdated?: string;
+  };
 }
 
 // Preview types for UI components (used before full ProcessResult is available)

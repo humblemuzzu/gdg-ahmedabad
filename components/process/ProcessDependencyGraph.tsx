@@ -146,23 +146,29 @@ export function ProcessDependencyGraph({ dependencyGraph }: ProcessDependencyGra
                 </div>
               </div>
               <div className="space-y-3">
-                {parallelGroups.map((group, gidx) => (
-                  <div key={gidx} className="flex items-start gap-3">
-                    <span className="text-xs font-medium text-muted-foreground bg-muted/50 px-2 py-1 rounded-lg flex-shrink-0">
-                      {gidx + 1}
-                    </span>
-                    <div className="flex flex-wrap gap-2">
-                      {group.map((nodeId) => {
-                        const node = nodeMap.get(nodeId);
-                        return (
-                          <span key={nodeId} className="bg-success/10 text-success text-sm px-3 py-1 rounded-lg">
-                            {node?.name || nodeId}
-                          </span>
-                        );
-                      })}
+                {parallelGroups.map((group, gidx) => {
+                  // Ensure group is an array before mapping
+                  const groupItems = Array.isArray(group) ? group : [];
+                  if (groupItems.length === 0) return null;
+                  
+                  return (
+                    <div key={gidx} className="flex items-start gap-3">
+                      <span className="text-xs font-medium text-muted-foreground bg-muted/50 px-2 py-1 rounded-lg flex-shrink-0">
+                        {gidx + 1}
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        {groupItems.map((nodeId) => {
+                          const node = nodeMap.get(String(nodeId));
+                          return (
+                            <span key={String(nodeId)} className="bg-success/10 text-success text-sm px-3 py-1 rounded-lg">
+                              {node?.name || String(nodeId)}
+                            </span>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -298,7 +304,7 @@ export function ProcessDependencyGraph({ dependencyGraph }: ProcessDependencyGra
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 animate-in fade-in slide-in-from-top-2 duration-200">
             {nodes.map((node) => {
               const colors = NODE_COLORS[node.type] || NODE_COLORS.step;
-              const isCritical = criticalPath.includes(node.id);
+              const isCritical = Array.isArray(criticalPath) && criticalPath.includes(node.id);
               const dependencies = edges.filter(e => e.to === node.id);
               const enables = edges.filter(e => e.from === node.id);
               

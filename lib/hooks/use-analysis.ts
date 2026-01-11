@@ -771,17 +771,10 @@ export function useAnalysis() {
       const decoder = new TextDecoder();
       let buffer = "";
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      let eventType = "";
+      let eventDataLines: string[] = [];
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        let eventType = "";
-        let eventDataLines: string[] = [];
-
+      const processLines = (lines: string[]) => {
         for (const rawLine of lines) {
           const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
 
@@ -795,13 +788,33 @@ export function useAnalysis() {
                 const data = JSON.parse(eventDataLines.join("\n"));
                 handleSSEEvent(eventType, data, setState, caseId, query);
               } catch (e) {
-                console.error("Failed to parse SSE data:", e);
+                console.error("Failed to parse SSE data:", e, "Event:", eventType, "Data:", eventDataLines.join("").slice(0, 200));
               }
             }
             eventType = "";
             eventDataLines = [];
           }
         }
+      };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          // Process any remaining data in buffer when stream ends
+          if (buffer.trim()) {
+            console.log("[Analysis] Processing remaining buffer on stream end, length:", buffer.length);
+            const remainingLines = buffer.split("\n");
+            remainingLines.push(""); // Add empty line to trigger final event processing
+            processLines(remainingLines);
+          }
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        processLines(lines);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";

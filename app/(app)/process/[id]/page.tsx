@@ -8,7 +8,6 @@ import { ProcessCostBreakdown } from "@/components/process/ProcessCostBreakdown"
 import { ProcessDependencyGraph } from "@/components/process/ProcessDependencyGraph";
 import { ProcessRiskAnalysis } from "@/components/process/ProcessRiskAnalysis";
 import { ProcessTimeline } from "@/components/process/ProcessTimeline";
-import { JourneyMap } from "@/components/visualization/JourneyMap";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAnalysisContext } from "@/lib/context/analysis-context";
@@ -42,10 +41,7 @@ export default function ProcessPage({
       <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
         <div className="space-y-6">
           <ProcessTimeline steps={steps} />
-          <div className="grid gap-6 xl:grid-cols-2">
-            <ProcessDependencyGraph />
-            <JourneyMap />
-          </div>
+          <ProcessDependencyGraph />
           <div className="grid gap-6 xl:grid-cols-2">
             <ProcessCostBreakdown costs={costs} />
             <ProcessRiskAnalysis risks={risks} />

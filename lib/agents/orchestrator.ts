@@ -135,6 +135,31 @@ function safeJsonParse(value: unknown): unknown {
     }
   }
   
+  // Attempt 5: Try to repair truncated JSON by closing open brackets
+  try {
+    let repaired = candidate;
+    // Count unclosed brackets
+    const openBraces = (repaired.match(/{/g) || []).length;
+    const closeBraces = (repaired.match(/}/g) || []).length;
+    const openBrackets = (repaired.match(/\[/g) || []).length;
+    const closeBrackets = (repaired.match(/]/g) || []).length;
+    
+    // If there's a truncated string (odd number of unescaped quotes), try to close it
+    if (repaired.match(/[^\\]"[^"]*$/)) {
+      repaired = repaired.replace(/[^\\]"[^"]*$/, '"');
+    }
+    
+    // Add missing closing brackets
+    for (let i = 0; i < openBrackets - closeBrackets; i++) repaired += "]";
+    for (let i = 0; i < openBraces - closeBraces; i++) repaired += "}";
+    
+    const parsed = JSON.parse(repaired);
+    console.log("[safeJsonParse] Repaired truncated JSON successfully");
+    return parsed;
+  } catch (e5) {
+    console.log("[safeJsonParse] Repair attempt failed:", (e5 as Error).message?.slice(0, 80));
+  }
+  
   console.error("[safeJsonParse] All parsing attempts failed. String length:", trimmed.length);
   console.error("[safeJsonParse] First 300 chars:", trimmed.slice(0, 300));
   console.error("[safeJsonParse] Last 300 chars:", trimmed.slice(-300));
@@ -526,18 +551,51 @@ export class AgentOrchestrator {
     }
     
     let result = safeJsonParse(rawResult);
+    const sessionState = (session?.state ?? {}) as Record<string, unknown>;
     
-    if (!result || (typeof result === "object" && Object.keys(result as object).length === 0)) {
-      const keys = Object.keys(session?.state ?? {});
+    // Check if we got a valid parsed object or if JSON parsing failed (returned string)
+    const isValidResult = result && typeof result === "object" && Object.keys(result as object).length > 0;
+    
+    if (!isValidResult) {
+      console.warn("[Orchestrator] Result parsing failed or empty, attempting to build from session state...");
+      
+      const keys = Object.keys(sessionState);
       if (keys.length === 0) {
         throw new Error(
           'No agent outputs were written to session state. This usually means Gemini calls are failing (invalid API key, disabled API, quota, or blocked model). Check `.env.local` and server logs.'
         );
       }
-      throw new Error(`No final result found in session state (expected key "bb_result"). State keys: ${keys.join(", ")}`);
+      
+      // Build a minimal result from session state
+      const intent = safeJsonParse(sessionState.bb_intent);
+      const location = safeJsonParse(sessionState.bb_location);
+      const business = safeJsonParse(sessionState.bb_business);
+      const documents = safeJsonParse(sessionState.bb_documents);
+      const timeline = safeJsonParse(sessionState.bb_timeline);
+      const costs = safeJsonParse(sessionState.bb_costs);
+      const risks = safeJsonParse(sessionState.bb_risks);
+      const laws = safeJsonParse(sessionState.bb_laws);
+      
+      // Construct minimal valid result from session state
+      result = {
+        query: typeof rawResult === "string" && rawResult.includes('"query"') 
+          ? rawResult.match(/"query":\s*\{[^}]*"original":\s*"([^"]+)"/)?.[1] || "Unknown"
+          : "Unknown",
+        intent: intent && typeof intent === "object" ? intent : { intent: "START_BUSINESS", confidence: 0.5, clarifyingQuestions: [] },
+        location: location && typeof location === "object" ? location : {},
+        business: business && typeof business === "object" ? business : {},
+        licenses: Array.isArray(laws) ? laws : (laws && typeof laws === "object" && Array.isArray((laws as Record<string, unknown>).licenses)) ? (laws as Record<string, unknown>).licenses : [],
+        documents: Array.isArray(documents) ? documents : (documents && typeof documents === "object" && Array.isArray((documents as Record<string, unknown>).groups)) ? (documents as Record<string, unknown>).groups : [],
+        timeline: Array.isArray(timeline) ? timeline : (timeline && typeof timeline === "object" && Array.isArray((timeline as Record<string, unknown>).items)) ? (timeline as Record<string, unknown>).items : [],
+        costs: costs && typeof costs === "object" ? costs : undefined,
+        risks: risks && typeof risks === "object" ? risks : undefined,
+        meta: { rebuiltFromSessionState: true, originalParsingFailed: true }
+      };
+      
+      console.log("[Orchestrator] Built fallback result from session state");
     }
 
-    result = mergeSessionStateIntoResult((session?.state ?? {}) as Record<string, unknown>, result);
+    result = mergeSessionStateIntoResult(sessionState, result);
 
     yield {
       type: "complete",
