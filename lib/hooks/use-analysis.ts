@@ -355,7 +355,42 @@ function normalizeResult(rawResult: Record<string, unknown>): ProcessResult | nu
   if (!rawResult) return null;
   
   const toStringArray = (value: unknown): string[] => {
-    if (Array.isArray(value)) return value.map((v) => String(v));
+    const extractString = (val: unknown): string => {
+      if (typeof val === "string") return val;
+      if (typeof val === "number" || typeof val === "boolean") return String(val);
+      if (typeof val === "object" && val !== null) {
+        const obj = val as Record<string, unknown>;
+        // Try common text fields, extracting string values
+        for (const key of ["measure", "text", "title", "name", "description", "value", "label"]) {
+          if (obj[key] !== undefined && obj[key] !== null) {
+            const fieldVal = obj[key];
+            if (typeof fieldVal === "string") return fieldVal;
+            if (typeof fieldVal === "number" || typeof fieldVal === "boolean") return String(fieldVal);
+          }
+        }
+        // Fallback to JSON if no string field found
+        return JSON.stringify(val);
+      }
+      return String(val);
+    };
+
+    if (Array.isArray(value)) return value.map((v) => {
+      if (typeof v === "string") return v;
+      if (typeof v === "object" && v !== null) {
+        const obj = v as Record<string, unknown>;
+        // Handle preventiveMeasures objects with measure/description fields
+        const measure = obj["measure"];
+        const description = obj["description"];
+        if (measure !== undefined && measure !== null) {
+          const measureStr = extractString(measure);
+          const descStr = description ? extractString(description) : "";
+          return descStr ? `${measureStr}: ${descStr}` : measureStr;
+        }
+        // Fallback: try to extract any string field
+        return extractString(v);
+      }
+      return String(v);
+    });
     if (typeof value === "string" && value.trim()) return [value];
     return [];
   };

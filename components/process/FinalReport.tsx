@@ -1163,14 +1163,41 @@ export function FinalReport({
                   <h3 className="font-semibold text-lg">Preventive Measures</h3>
                 </div>
                 <ul className="space-y-2">
-                  {result.risks.preventiveMeasures.map((measure, idx) => (
-                    <li key={idx} className="flex items-start gap-3 text-sm">
-                      <svg className="h-5 w-5 text-success flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                      <span>{measure}</span>
-                    </li>
-                  ))}
+                  {result.risks.preventiveMeasures.map((measure, idx) => {
+                    // Handle both string and object formats
+                    let measureText: string;
+                    if (typeof measure === 'string') {
+                      measureText = measure;
+                    } else if (typeof measure === 'object' && measure !== null) {
+                      const obj = measure as Record<string, unknown>;
+                      // Extract string from common fields
+                      const extractStr = (val: unknown): string | null => {
+                        if (typeof val === 'string') return val;
+                        if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+                        return null;
+                      };
+                      const measureVal = extractStr(obj.measure);
+                      const descVal = extractStr(obj.description);
+                      const textVal = extractStr(obj.text);
+                      const titleVal = extractStr(obj.title);
+                      
+                      if (measureVal) {
+                        measureText = descVal ? `${measureVal}: ${descVal}` : measureVal;
+                      } else {
+                        measureText = descVal || textVal || titleVal || JSON.stringify(measure);
+                      }
+                    } else {
+                      measureText = String(measure);
+                    }
+                    return (
+                      <li key={idx} className="flex items-start gap-3 text-sm">
+                        <svg className="h-5 w-5 text-success flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span>{measureText}</span>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             )}
